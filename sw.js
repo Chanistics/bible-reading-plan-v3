@@ -1,4 +1,4 @@
-const CACHE_NAME = 'parashat-tracker-v3-original-language-v24';
+const CACHE_NAME = 'parashat-tracker-v3-original-language-v25';
 const urlsToCache = [
   './',
   './index.html',
@@ -13,7 +13,7 @@ const urlsToCache = [
   './original-data/hebrew-lexicon.js',
   './original-data/greek-lexicon.js',
   './original-data/kjv1769-strong/index.js',
-  './app.js?v=48',
+  './app.js?v=49',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

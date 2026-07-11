@@ -2,7 +2,12 @@
 
 const STATE_KEY = 'parashat_tracker_state';
 const PLAN_KEY_PREFIX = 'parashat_plan_v8_'; // 캐시 갱신 및 베레시트 주기 맞춤 동적 배분 수정을 반영한 v8 접두사
-const DEFAULT_FAMILY_NAME = "P274 Bible Reading Plan";
+const DEFAULT_FAMILY_NAME = "P274 v3";
+const LEGACY_DEFAULT_NAMES = new Set([
+  "P274 Bible Reading Plan",
+  "P274 Reading Plan 2.5",
+  "P274 2.5"
+]);
 
 let appState = {
   progress: {}, // { 'YYYY-MM-DD': { torah: true, megillah: false, ot: false... } }
@@ -42,7 +47,7 @@ function normalizeAppState(rawState = {}) {
   if (!state.progress || typeof state.progress !== 'object' || Array.isArray(state.progress)) {
     state.progress = {};
   }
-  if (!state.familyName) {
+  if (!state.familyName || LEGACY_DEFAULT_NAMES.has(state.familyName)) {
     state.familyName = DEFAULT_FAMILY_NAME;
   }
   if (state.theme !== 'light') {

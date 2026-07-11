@@ -2,9 +2,9 @@
 
 const STATE_KEY = 'parashat_tracker_state';
 const PLAN_KEY_PREFIX = 'parashat_plan_v8_'; // 캐시 갱신 및 베레시트 주기 맞춤 동적 배분 수정을 반영한 v8 접두사
-const DEFAULT_FAMILY_NAME = "P274 v3";
+const DEFAULT_FAMILY_NAME = "P274 Bible Reading Plan";
 const LEGACY_DEFAULT_NAMES = new Set([
-  "P274 Bible Reading Plan",
+  "P274 v3",
   "P274 Reading Plan 2.5",
   "P274 2.5"
 ]);

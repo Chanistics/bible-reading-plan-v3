@@ -1,0 +1,21 @@
+{
+  "name": "P274 Reading Plan 2.5",
+  "short_name": "P274 2.5",
+  "description": "유대력 기준 매일 성경 통독 트래커",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f0f0d",
+  "theme_color": "#0f0f0d",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

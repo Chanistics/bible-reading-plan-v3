@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>P274 Reading Plan 2.5</title>
+  
+  <meta name="theme-color" content="#0f0f0d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="P274 Plan 2.5">
+  
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@700;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=47">
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+  <!-- Landing / Login Gate (Simulated for Local/Personal Use) -->
+  <div id="landing-page" class="page active">
+    <div class="landing-content">
+      <h1 class="landing-title">
+        <span class="title-large">P274</span>
+        <span class="title-sub">Bible Reading Plan</span>
+      </h1>
+      <p class="landing-subtitle">유대력 기준 매일 성경 통독 트래커</p>
+      
+      <button id="btn-enter" class="btn-primary btn-large">
+        START
+      </button>
+      <div class="landing-note">개인용 데이터는 기기에 안전하게 저장됩니다.</div>
+    </div>
+    <div class="landing-bg"></div>
+  </div>
+
+  <!-- Dashboard Page -->
+  <div id="dashboard-page" class="page">
+    <!-- Premium Header Area -->
+    <header class="custom-header">
+      <div class="header-content-inner">
+        <!-- Left Side: Title & Subtitle -->
+        <div class="header-left">
+          <div class="header-badge">연간 ㆍ 토라 포션</div>
+          <h1 class="header-family-title" id="family-title-text">P274 Bible Reading Plan</h1>
+          <div class="header-description" id="header-hebcal-banner">
+            오늘의 유대력: 로딩 중...
+          </div>
+        </div>
+        
+        <!-- Right Side: Stat Boxes -->
+        <div class="header-right">
+          <!-- Box 1: 오늘 날짜 및 몇일차 -->
+          <div class="stat-box">
+            <span class="stat-title">오늘</span>
+            <span class="stat-value" id="stat-today-val">...</span>
+          </div>
+          <!-- Box 2: 전체 진도 -->
+          <div class="stat-box">
+            <span class="stat-title">전체 진도</span>
+            <span class="stat-value" id="stat-progress-val">0%</span>
+          </div>
+          <!-- Box 3: 완료 / 전체 -->
+          <div class="stat-box">
+            <span class="stat-title">완료 / 전체</span>
+            <span class="stat-value" id="stat-completed-val">0 / -</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Ticker Bar -->
+    <div class="ticker-bar">
+      <div class="ticker-left">
+        <span class="ticker-icon">📖</span>
+        <span class="ticker-label">오늘의 성경읽기</span>
+        <span class="ticker-content" id="ticker-reading-text">...</span>
+      </div>
+      <button id="btn-ticker-check" class="btn-check-all">완료 체크</button>
+    </div>
+
+    <!-- Tab Bar -->
+    <nav class="custom-tabs">
+      <div class="tabs-inner">
+        <button class="tab-item active" data-tab="dashboard">대시보드</button>
+        <button class="tab-item" data-tab="reading">오늘의 통독</button>
+        <button class="tab-item" data-tab="weekly">주간 보기</button>
+        <button class="tab-item" data-tab="annual">연간 보기</button>
+        <button class="tab-item" data-tab="settings">설정</button>
+      </div>
+    </nav>
+
+    <!-- Tab Contents Container -->
+    <div id="tab-contents-container">
+      
+      <!-- Tab 1: 대시보드 (캘린더 + 다가오는 절기) -->
+      <div id="tab-content-dashboard" class="tab-pane active">
+        <div class="dashboard-two-columns">
+          <!-- Calendar Card -->
+          <div class="layout-left-card">
+            <div class="calendar-header">
+              <button id="btn-cal-prev" class="btn-secondary btn-cal-arrow">◀</button>
+              <h3 id="calendar-month-title" class="calendar-month-title">...</h3>
+              <button id="btn-cal-next" class="btn-secondary btn-cal-arrow">▶</button>
+            </div>
+            <div class="calendar-grid-header">
+              <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div><div>토라포션</div>
+            </div>
+            <div id="calendar-grid-cells" class="calendar-grid-cells">
+              <!-- Calendar cells injected here -->
+            </div>
+            
+            <!-- Selected Date Events Detail Section -->
+            <div id="selected-date-events-section" style="margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--gold); margin: 0;" id="selected-date-events-title">...</h4>
+                <button id="btn-open-add-event-modal" class="btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; border-radius: 6px;">일정 추가/관리</button>
+              </div>
+              <div id="selected-date-events-list">
+                <!-- Events listed here -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Upcoming Holidays Card -->
+          <div class="layout-left-card">
+            <h4 class="section-subtitle">✨ 다가오는 절기</h4>
+            <div id="upcoming-holidays-container" class="upcoming-holidays-list">
+              <!-- Upcoming holidays injected here -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: 오늘의 통독 -->
+      <div id="tab-content-reading" class="tab-pane">
+        <div class="dashboard-single-column">
+          <!-- Left Card: 금주의 파라샤 & 오늘의 통독 개별 체크 -->
+          <div class="layout-left-card">
+            <!-- Weekly Parasha Header -->
+            <div class="parasha-header-section">
+              <div class="parasha-badge" id="parasha-badge-text">...</div>
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 0.5rem;">
+                <div>
+                  <h3 class="parasha-title" id="parasha-title-text">...</h3>
+                  <p class="parasha-meaning" id="parasha-meaning-text-dashboard">...</p>
+                </div>
+                <button id="btn-toggle-meaning-new" class="btn-icon">▲</button>
+              </div>
+              <div id="parasha-meaning-box-new" class="parasha-meaning-detail-box">
+                <strong style="color: var(--gold);">히브리어: </strong>
+                <span id="parasha-hebrew-text">...</span>
+              </div>
+            </div>
+            
+            <!-- Today's Reading Checklist (Preserved) -->
+            <div class="reading-checklist-section">
+              <h4 class="section-subtitle" id="checklist-date-title">오늘의 통독</h4>
+              <div id="reading-checklist-container">
+                <!-- Checklist items injected via JS -->
+                <div class="reading-skeleton">플랜을 불러오는 중...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 3: 주간 보기 -->
+      <div id="tab-content-weekly" class="tab-pane">
+        <div class="dashboard-single-column">
+          <!-- Right Card: 이번 주 (7일) 일정 -->
+          <div class="layout-right-card">
+            <div class="weekly-schedule-section">
+              <h4 class="section-subtitle">📖 이번 주 (7일) 일정</h4>
+              <div class="weekly-schedule-list" id="weekly-schedule-container">
+                <!-- 7 Days rendered here -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 4: 연간 보기 -->
+      <div id="tab-content-annual" class="tab-pane">
+        <div id="annual-container">
+          <!-- Annual items injected here -->
+        </div>
+      </div>
+
+      <!-- Tab 5: 설정 -->
+      <div id="tab-content-settings" class="tab-pane">
+        <div class="layout-left-card">
+          <h4 class="section-subtitle">⚙️ 트래커 설정</h4>
+          <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">성경읽기표 이름 설정</label>
+            <input type="text" id="input-family-name" style="width: 100%; padding: 0.75rem; background: #0b0e14; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 1rem;" placeholder="P274 Bible Reading Plan">
+            <button id="btn-save-family-name" class="btn-primary" style="margin-top: 0.75rem;">이름 저장</button>
+          </div>
+          
+          <div style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1.5rem; margin-top: 1.5rem; margin-bottom: 1.5rem;">
+            <h5 style="color: var(--text-main); margin-bottom: 0.5rem;">통독 기준일 설정 (테스트용)</h5>
+            <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 1rem;">특정 날짜에 절기와 통독 본문이 대시보드에 어떻게 반영되는지 검증하기 위해 오늘 날짜를 임의로 변경할 수 있습니다.</p>
+            <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+              <input type="date" id="input-override-date" style="padding: 0.75rem; background: #0b0e14; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 1rem; cursor: pointer;">
+              <button id="btn-save-override-date" class="btn-primary">날짜 지정</button>
+              <button id="btn-reset-override-date" class="btn-secondary" style="border-color: rgba(255,255,255,0.15);">오늘로 리셋</button>
+            </div>
+          </div>
+          
+          <div style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1.5rem; margin-top: 1.5rem; margin-bottom: 1.5rem;">
+            <h5 style="color: var(--text-main); margin-bottom: 0.5rem;">화면 테마 설정</h5>
+            <div style="display: flex; gap: 1.5rem; margin-top: 0.75rem;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: var(--text-main);">
+                <input type="radio" name="theme-mode" value="dark" checked> 다크 모드 (기본)
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: var(--text-main);">
+                <input type="radio" name="theme-mode" value="light"> 라이트 모드
+              </label>
+            </div>
+          </div>
+
+          <div style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1.5rem;">
+            <h5 style="color: var(--text-main); margin-bottom: 0.5rem;">데이터 초기화</h5>
+            <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 1rem;">모든 읽기 진행 상황을 리셋하고 새로 시작합니다.</p>
+            <button id="btn-reset-data" class="btn-secondary" style="color: var(--p4); border-color: rgba(255,123,114,0.3);">전체 데이터 초기화</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bible Reader Modal -->
+    <div id="bible-reader-modal" class="modal-overlay hidden">
+      <div class="modal-content bible-reader-modal-content">
+        <div class="modal-header">
+          <h3 id="bible-reader-title" class="modal-title">본문 읽기 <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted); margin-left: 0.5rem; vertical-align: middle;">(개역한글)</span></h3>
+          <button id="btn-close-reader" class="btn-close">&times;</button>
+        </div>
+        <div id="bible-reader-body" class="modal-body bible-reader-body">
+          <div class="bible-reader-layout">
+            <div class="bible-reader-main">
+              <div class="bible-loading">
+                <div class="spinner"></div>
+                <div>본문을 불러오고 있습니다...</div>
+              </div>
+              <div id="bible-text-container" class="bible-text-container hidden">
+                <!-- Verses rendered here -->
+              </div>
+              <div id="bible-error-container" class="bible-error-container hidden">
+                본문을 불러오지 못했습니다. 네트워크 연결을 확인해주세요.
+              </div>
+            </div>
+            <aside id="original-language-panel" class="original-language-panel hidden">
+              <div class="original-panel-empty">절을 선택하면 원어 해설이 열립니다.</div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Parasha Detail Modal -->
+    <div id="parasha-detail-modal" class="modal-overlay hidden">
+      <div class="modal-content parasha-modal-content">
+        <div class="modal-header">
+          <h3 id="parasha-modal-title" class="modal-title">파라샤 보기</h3>
+          <button id="btn-close-parasha-modal" class="btn-close">&times;</button>
+        </div>
+        <div id="parasha-modal-body" class="modal-body parasha-modal-body">
+          <!-- Parasha details rendered here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Event Manager Modal (Popup) -->
+    <div id="event-manager-modal" class="modal-overlay hidden">
+      <div class="modal-content" style="max-width: 450px;">
+        <div class="modal-header">
+          <h3 id="event-modal-title" class="modal-title">일정 관리</h3>
+          <button id="btn-close-event-modal" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div id="event-modal-list" style="margin-bottom: 1.5rem; max-height: 200px; overflow-y: auto;">
+            <!-- Event list items injected here -->
+          </div>
+          
+          <!-- Add Event Form -->
+          <div style="display: flex; flex-direction: column; gap: 0.75rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+            <div>
+              <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-muted);">일정 이름</label>
+              <input type="text" id="input-modal-event-text" placeholder="새 일정 입력..." style="width: 100%; padding: 0.6rem 0.75rem; background: #0b0e14; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 0.95rem;">
+            </div>
+            
+            <div style="display: flex; gap: 0.5rem;">
+              <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-muted);">시작일</label>
+                <input type="date" id="input-modal-start-date" style="width: 100%; padding: 0.6rem 0.75rem; background: #0b0e14; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 0.95rem;">
+              </div>
+              <div style="flex: 1;">
+                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-muted);">종료일</label>
+                <input type="date" id="input-modal-end-date" style="width: 100%; padding: 0.6rem 0.75rem; background: #0b0e14; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 0.95rem;">
+              </div>
+            </div>
+            
+            <div>
+              <label style="display: block; margin-bottom: 0.35rem; font-size: 0.85rem; color: var(--text-muted);">색상 선택</label>
+              <div class="event-color-selector" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.5rem; justify-items: center;">
+                <button class="color-dot active" data-color="gold" style="background-color: #f0b429;" title="Gold"></button>
+                <button class="color-dot" data-color="blue" style="background-color: #58a6ff;" title="Blue"></button>
+                <button class="color-dot" data-color="green" style="background-color: #3fb950;" title="Green"></button>
+                <button class="color-dot" data-color="purple" style="background-color: #bc8cff;" title="Purple"></button>
+                <button class="color-dot" data-color="red" style="background-color: #ff7b72;" title="Red"></button>
+                <button class="color-dot" data-color="orange" style="background-color: #f97316;" title="Orange"></button>
+                <button class="color-dot" data-color="cyan" style="background-color: #22d3ee;" title="Cyan"></button>
+                <button class="color-dot" data-color="pink" style="background-color: #f472b6;" title="Pink"></button>
+                <button class="color-dot" data-color="teal" style="background-color: #14b8a6;" title="Teal"></button>
+                <button class="color-dot" data-color="lavender" style="background-color: #a78bfa;" title="Lavender"></button>
+                <button class="color-dot" data-color="emerald" style="background-color: #34d399;" title="Emerald"></button>
+                <button class="color-dot" data-color="amber" style="background-color: #fbbf24;" title="Amber"></button>
+              </div>
+            </div>
+            
+            <button id="btn-modal-add-event" class="btn-primary" style="width: 100%; padding: 0.75rem; font-size: 0.95rem; border-radius: 8px; font-weight: bold; margin-top: 0.5rem;">일정 추가</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Generating state overlay -->
+    <div id="generating-overlay" class="generating-overlay hidden">
+      <div class="spinner"></div>
+      <div class="gen-text">연간 통독 플랜을 생성하고 있습니다...<br><small>Hebcal API와 동기화 중</small></div>
+    </div>
+  </div>
+
+  <script src="bible-data.js"></script>
+  <script src="parasha-data.js"></script>
+  <script src="parasha-details.js"></script>
+  <script src="hebcal.js"></script>
+  <script src="generator.js"></script>
+  <script src="original-language-data.js?v=1"></script>
+  <script src="app.js?v=48"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW Reg failed:', err));
+      });
+    }
+  </script>
+</body>
+</html>

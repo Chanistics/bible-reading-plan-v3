@@ -65,6 +65,23 @@ async function main() {
   assert.strictEqual(plan['2026-10-10'].torah, bereshit2026.leyning['7']);
   assert(!dates.some(date => plan[date].parasha === 'Shalom'), 'synthetic Shalom week must not exist');
 
+  context.window.addEventListener = () => {};
+  context.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} };
+  context.sessionStorage = { getItem: () => null };
+  context.document = { getElementById: () => ({ addEventListener: () => {} }) };
+  load('app.js');
+  context.window.TEST_CURRENT_PLAN = context.window.Generator.generateHebrewYearPlan(
+    [...years['2025'], ...years['2026']],
+    sundayBefore(years['2025'].find(item => item.title === 'Parashat Bereshit').date),
+    dayDifference(sundayBefore(years['2025'].find(item => item.title === 'Parashat Bereshit').date), start)
+  );
+  vm.runInContext('currentPlan = window.TEST_CURRENT_PLAN;', context);
+  assert.strictEqual(
+    vm.runInContext("getCalendarDayPlan('2026-10-04').parasha", context),
+    'Bereshit',
+    'dashboard calendar must cross from the 5786 plan into the bundled 5787 cycle'
+  );
+
   const expectedOt = context.window.BIBLE_DATA.flattenBooks(context.window.BIBLE_DATA.OT_OTHER_BOOKS);
   const expectedNt = context.window.BIBLE_DATA.flattenBooks(context.window.BIBLE_DATA.NT_BOOKS);
   assert.deepStrictEqual(Array.from(dates.flatMap(date => plan[date].ot)), Array.from(expectedOt));

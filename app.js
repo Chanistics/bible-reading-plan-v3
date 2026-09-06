@@ -21,6 +21,7 @@ let appState = {
 
 let currentPlan = null;
 let activeDateStr = null; // 선택된 날짜 (기본: 오늘)
+let bundledCalendarPlanByDate = null;
 const memoryStorage = new Map();
 let appInitializationPromise = null;
 let appUiInitialized = false;
@@ -415,6 +416,48 @@ function isValidGeneratedPlan(plan) {
   const parashaDays = days.filter(day => day && day.parasha).length;
   const holidayDays = days.filter(day => day && Array.isArray(day.holidays) && day.holidays.length).length;
   return days.length >= 350 && parashaDays >= 300 && holidayDays >= 10;
+}
+
+function getBundledBereshitCycleAnchors() {
+  const years = window.BUNDLED_HEBCAL_DATA && window.BUNDLED_HEBCAL_DATA.years;
+  return Object.entries(years || {})
+    .map(([gregorianYear, items]) => {
+      const bereshit = (items || []).find(item => item.category === 'parashat' && item.title === 'Parashat Bereshit');
+      if (!bereshit) return null;
+      const saturday = new Date(`${bereshit.date}T00:00:00Z`);
+      saturday.setUTCDate(saturday.getUTCDate() - 6);
+      return {
+        hYear: String(Number(gregorianYear) + 3761),
+        start: saturday.toISOString().split('T')[0]
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.start.localeCompare(b.start));
+}
+
+function buildBundledCalendarPlanIndex() {
+  if (bundledCalendarPlanByDate) return bundledCalendarPlanByDate;
+
+  const years = window.BUNDLED_HEBCAL_DATA && window.BUNDLED_HEBCAL_DATA.years;
+  const allItems = Object.values(years || {}).flat();
+  const anchors = getBundledBereshitCycleAnchors();
+  const index = Object.create(null);
+
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const start = anchors[i].start;
+    const end = anchors[i + 1].start;
+    const totalDays = Math.round((new Date(`${end}T00:00:00Z`) - new Date(`${start}T00:00:00Z`)) / 86400000);
+    const plan = window.Generator.generateHebrewYearPlan(allItems, start, totalDays);
+    Object.assign(index, plan);
+  }
+
+  bundledCalendarPlanByDate = index;
+  return bundledCalendarPlanByDate;
+}
+
+function getCalendarDayPlan(dateStr) {
+  if (currentPlan && currentPlan[dateStr]) return currentPlan[dateStr];
+  return buildBundledCalendarPlanIndex()[dateStr] || null;
 }
 
 // 유대력 첫날(플랜 시작일)로부터 경과 일수 구하기 - 타임존 영향 없음
@@ -1573,7 +1616,7 @@ function renderCalendar() {
         cell.style.gridColumn = String(col + 1);
         cell.style.gridRow = String(weekGridRow);
         
-        const dayPlan = currentPlan[dateStr];
+        const dayPlan = getCalendarDayPlan(dateStr);
         let isCompleted = false;
         let holidayName = '';
         
@@ -1615,11 +1658,13 @@ function renderCalendar() {
         // 클릭 시 날짜 선택 및 팝업 모달창 띄우기
         const cellDateStr = dateStr;
         cell.addEventListener('click', () => {
-          activeDateStr = cellDateStr;
           document.querySelectorAll('.calendar-cell').forEach(c => c.classList.remove('active-highlight'));
           cell.classList.add('active-highlight');
-          
-          renderDashboard();
+
+          if (currentPlan[cellDateStr]) {
+            activeDateStr = cellDateStr;
+            renderDashboard();
+          }
           openEventModal(cellDateStr);
         });
         
@@ -1683,7 +1728,7 @@ function openParashaDetailModal(weekDateStrs, weekParashaName) {
     : '';
 
   const readingRows = visibleDates.map(dateStr => {
-    const dayData = currentPlan[dateStr];
+    const dayData = getCalendarDayPlan(dateStr);
     if (!dayData) return '';
 
     const tags = [];

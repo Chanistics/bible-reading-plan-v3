@@ -72,7 +72,8 @@ function getMegillahTypeForHolidayName(holidayName) {
   if (/^shavuot(?: (?:i|ii))?$/.test(name)) return 'Ruth';
   if (/^tish'a b'av(?: \(observed\))?$/.test(name)) return 'Lam';
   if (/^sukkot(?: (?:i|ii|iii|iv|v|vi|vii)(?: \([^)]*\))?)?$/.test(name) ||
-      name === 'shmini atzeret' || name === 'simchat torah') return 'Eccl';
+      name === 'shmini atzeret' || name === 'simchat torah' ||
+      name === 'shmini atzeret / simchat torah') return 'Eccl';
   if (name === 'purim') return 'Esth';
   return null;
 }
@@ -121,7 +122,7 @@ function generateHebrewYearPlan(hebcalItems, startDateStr, totalDays = 365) {
         hebrew: item.hebrew,
         memo: item.memo
       });
-      if (/simchat torah/i.test(item.title)) {
+      if (/^(?:shmini atzeret(?: \/ simchat torah)?|simchat torah)$/i.test(item.title)) {
         plan[item.date].torahCompletion = 'Deuteronomy 33:1-34:12';
       }
     }

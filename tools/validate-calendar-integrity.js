@@ -71,7 +71,9 @@ function main() {
     .forEach(load);
 
   const years = context.window.BUNDLED_HEBCAL_DATA.years;
+  assert.strictEqual(context.window.BUNDLED_HEBCAL_DATA.calendarStandard, 'israel', 'Bundled calendar must use Israel observance');
   const allEvents = Object.values(years).flat();
+  assert(!allEvents.some(item => /^(?:Pesach VIII|Shavuot II|Simchat Torah)$/.test(item.title)), 'Diaspora-only festival days must not be bundled');
   const anchors = Object.entries(years)
     .map(([gregorianYear, items]) => {
       const bereshit = items.find(item => item.category === 'parashat' && item.title === 'Parashat Bereshit');
@@ -89,12 +91,11 @@ function main() {
     'Rosh Hashana': ({ month, day }) => month === 'Tishri' && (day === 1 || day === 2),
     'Yom Kippur': ({ month, day }) => month === 'Tishri' && day === 10,
     'Sukkot': ({ month, day }) => month === 'Tishri' && day >= 15 && day <= 21,
-    'Shmini Atzeret': ({ month, day }) => month === 'Tishri' && day === 22,
-    'Simchat Torah': ({ month, day }) => month === 'Tishri' && day === 23,
+    'Shmini Atzeret / Simchat Torah': ({ month, day }) => month === 'Tishri' && day === 22,
     'Purim': ({ month, day }) => /^Adar(?: II)?$/.test(month) && day === 14,
     'Pesach Sheni': ({ month, day }) => month === 'Iyar' && day === 14,
-    'Pesach': ({ month, day }) => month === 'Nisan' && day >= 15 && day <= 22,
-    'Shavuot': ({ month, day }) => month === 'Sivan' && (day === 6 || day === 7)
+    'Pesach': ({ month, day }) => month === 'Nisan' && day >= 15 && day <= 21,
+    'Shavuot': ({ month, day }) => month === 'Sivan' && day === 6
   };
 
   allEvents.filter(item => item.category === 'holiday').forEach(item => {
@@ -115,7 +116,9 @@ function main() {
   const expectedMegillot = new Set(context.window.BIBLE_DATA.MEGILLOT_BOOKS.flatMap(book =>
     Array.from({ length: book.chapters }, (_, index) => `${book.name} ${index + 1}`)
   ));
-  const requiredCycleHolidayCategories = new Set(Object.keys(holidayDateRules).filter(key => key !== 'Shmini Atzeret'));
+  const requiredCycleHolidayCategories = new Set(
+    Object.keys(holidayDateRules).filter(key => key !== 'Shmini Atzeret / Simchat Torah')
+  );
   const cycleReports = [];
 
   for (let index = 0; index < anchors.length - 1; index++) {
@@ -178,10 +181,13 @@ function main() {
     }
 
     const completionDates = dates.filter(date => plan[date].torahCompletion);
-    assert.strictEqual(completionDates.length, 1, `${hYear}: Torah completion must occur exactly once`);
-    assert(
-      plan[completionDates[0]].holidays.some(holiday => holiday.name === 'Simchat Torah'),
-      `${hYear}: Torah completion must occur on Simchat Torah`
+    const completionHolidayDates = dates.filter(date => plan[date].holidays.some(holiday =>
+      /^(?:shmini atzeret(?: \/ simchat torah)?|simchat torah)$/i.test(holiday.name)
+    ));
+    assert.deepStrictEqual(
+      completionDates,
+      completionHolidayDates,
+      `${hYear}: every Israel Simchat Torah date must carry the Torah completion reading`
     );
     assert.strictEqual(
       dates.filter(date => !plan[date].torah && !plan[date].torahCompletion && !plan[date].megillah && !plan[date].ot.length && !plan[date].nt.length).length,
@@ -194,7 +200,7 @@ function main() {
 
   console.log(`Calendar integrity checks passed for ${cycleReports.length} complete offline cycles.`);
   cycleReports.forEach(report => console.log(`- ${report}`));
-  console.log('Verified exact festival dates, continuous days, source aliyot, one Torah completion, 39 unique Megillot chapters, 703 OT chapters, and 260 NT chapters per cycle.');
+  console.log('Verified Israel festival dates, continuous days, source aliyot, eligible Torah completion dates, 39 unique Megillot chapters, 703 OT chapters, and 260 NT chapters per cycle.');
 }
 
 main();

@@ -163,13 +163,25 @@ async function main() {
       actualTorahReadings.push(...collectReadingVerses(plan[date].torahCompletion, verseSetsByEnglishBook));
     });
     const actualTorah = new Set(actualTorahReadings);
-    assert.deepStrictEqual(Array.from(actualTorah).sort(), Array.from(expectedTorahVerses).sort(), `${start}: complete Torah verse distribution`);
+    const completionCount = dates.filter(date => plan[date].torahCompletion).length;
+    const expectedCycleTorah = completionCount
+      ? expectedTorahVerses
+      : new Set(Array.from(expectedTorahVerses).filter(key => !/^Deuteronomy (?:33|34):/.test(key)));
+    assert.deepStrictEqual(
+      Array.from(actualTorah).sort(),
+      Array.from(expectedCycleTorah).sort(),
+      `${start}: Torah distribution must match the Israel transition dates contained in this Sunday-Saturday cycle`
+    );
 
     const torahFrequency = new Map();
     actualTorahReadings.forEach(key => torahFrequency.set(key, (torahFrequency.get(key) || 0) + 1));
     const repeatedTorahVerses = Array.from(torahFrequency).filter(([, count]) => count > 1);
     const allowedSpecialRepeat = new Set(Array.from({ length: 7 }, (_, offset) => `Numbers 28:${offset + 9}`));
     repeatedTorahVerses.forEach(([key, count]) => {
+      if (/^Deuteronomy (?:33|34):/.test(key) && completionCount > 1) {
+        assert.strictEqual(count, completionCount, `${start}: completion verses must repeat only on actual transition dates`);
+        return;
+      }
       assert(allowedSpecialRepeat.has(key), `${start}: unexpected repeated Torah verse ${key}`);
       assert.strictEqual(count, 2, `${start}: special Torah verse must not occur more than twice: ${key}`);
     });

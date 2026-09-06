@@ -4757,3 +4757,321 @@ body.light-mode .annual-week-summary {
     width: 100%;
   }
 }
+
+/* Torah exploration guide */
+.today-torah-guide {
+  border-top: 1px solid var(--border);
+  margin-top: 1.1rem;
+  padding-top: 1rem;
+}
+
+.today-torah-guide-header,
+.verse-torah-guide-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.today-torah-guide-kicker {
+  color: var(--gold);
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.today-torah-guide h4 {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.btn-text-action {
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  min-height: 36px;
+  padding: 0.35rem 0;
+}
+
+.btn-text-action:hover,
+.btn-text-action:focus-visible {
+  color: var(--text-main);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.today-guide-movement {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.1rem 0.55rem;
+  margin: 0.75rem 0;
+}
+
+.today-guide-movement span {
+  color: var(--gold);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.today-guide-movement strong {
+  font-size: 0.88rem;
+}
+
+.today-guide-movement small {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  grid-column: 2;
+}
+
+.today-guide-topic-list {
+  border-block: 1px solid var(--border);
+}
+
+.today-guide-topic {
+  align-items: center;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.55rem 0;
+}
+
+.today-guide-topic + .today-guide-topic {
+  border-top: 1px solid var(--border);
+}
+
+.today-guide-topic > span,
+.torah-guide-topic-number {
+  align-items: center;
+  background: var(--gold-dim);
+  border: 1px solid rgba(240, 180, 41, 0.3);
+  border-radius: 50%;
+  color: var(--gold);
+  display: flex;
+  font-size: 0.72rem;
+  font-weight: 900;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.today-guide-topic strong,
+.today-guide-topic small {
+  display: block;
+}
+
+.today-guide-topic strong {
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.today-guide-topic small,
+.today-guide-more {
+  color: var(--text-muted);
+  font-size: 0.73rem;
+}
+
+.today-guide-more {
+  padding-top: 0.55rem;
+  text-align: right;
+}
+
+.parasha-modal-tabs {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 3px;
+}
+
+.parasha-modal-tabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+  min-height: 38px;
+  padding: 0.35rem 0.5rem;
+}
+
+.parasha-modal-tabs button span {
+  color: var(--gold);
+  font-size: 0.72rem;
+  margin-left: 0.2rem;
+}
+
+.parasha-modal-tabs button.active {
+  background: var(--bg-card-hover);
+  color: var(--text-main);
+}
+
+.parasha-modal-panel .parasha-modal-section {
+  border-bottom: 0;
+}
+
+.parasha-guide-movements {
+  display: grid;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.parasha-guide-movement {
+  border-left: 3px solid var(--gold);
+  display: grid;
+  gap: 0.15rem;
+  padding-left: 0.75rem;
+}
+
+.parasha-guide-movement span,
+.torah-guide-topic-meta {
+  color: var(--gold);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.parasha-guide-movement strong {
+  font-size: 0.95rem;
+}
+
+.parasha-guide-movement small,
+.torah-guide-topic-reference {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.parasha-guide-questions {
+  background: var(--accent-dim);
+  border: 1px solid rgba(88, 166, 255, 0.22);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  padding: 0.8rem 0.9rem;
+}
+
+.parasha-guide-questions strong {
+  color: var(--accent);
+  font-size: 0.8rem;
+}
+
+.parasha-guide-questions ol {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin: 0.4rem 0 0 1.15rem;
+}
+
+.parasha-guide-topic-list,
+.verse-torah-guide-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.torah-guide-topic {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.torah-guide-topic-number {
+  height: 32px;
+  width: 32px;
+}
+
+.torah-guide-topic h5 {
+  font-size: 0.94rem;
+  line-height: 1.4;
+  margin: 0.1rem 0;
+}
+
+.torah-guide-threads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.45rem;
+}
+
+.torah-guide-thread {
+  border: 1px solid var(--border-active);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  padding: 0.12rem 0.32rem;
+}
+
+.parasha-guide-empty {
+  color: var(--text-muted);
+  padding: 1rem 0;
+  text-align: center;
+}
+
+.verse-torah-guide {
+  border-bottom: 1px solid var(--border);
+  padding: 0.85rem 1rem;
+}
+
+.verse-torah-guide-heading {
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 800;
+  margin-bottom: 0.6rem;
+}
+
+.verse-torah-guide-heading strong {
+  background: var(--gold-dim);
+  border-radius: 4px;
+  color: var(--gold);
+  font-size: 0.7rem;
+  padding: 0.15rem 0.38rem;
+}
+
+.torah-guide-topic.compact {
+  background: transparent;
+  grid-template-columns: 28px minmax(0, 1fr);
+  padding: 0.6rem;
+}
+
+.torah-guide-topic.compact .torah-guide-topic-number {
+  height: 28px;
+  width: 28px;
+}
+
+.torah-guide-topic.compact h5 {
+  font-size: 0.84rem;
+}
+
+.torah-guide-topic.compact .torah-guide-topic-meta {
+  display: none;
+}
+
+body.light-mode .parasha-modal-tabs,
+body.light-mode .torah-guide-topic {
+  background: rgba(27, 31, 36, 0.025);
+}
+
+body.light-mode .parasha-modal-tabs button.active {
+  background: #ffffff;
+}
+
+@media (max-width: 700px) {
+  .parasha-modal-tabs button {
+    font-size: 0.76rem;
+    padding-inline: 0.25rem;
+  }
+
+  .torah-guide-topic {
+    gap: 0.55rem;
+    padding: 0.65rem;
+  }
+}

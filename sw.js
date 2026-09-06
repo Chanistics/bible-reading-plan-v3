@@ -1,12 +1,13 @@
-const CACHE_NAME = 'p274-v3-shell-v34';
+const CACHE_NAME = 'p274-v3-shell-v35';
 const RUNTIME_CACHE_NAME = 'p274-v3-scripture-v3';
 const urlsToCache = [
   './',
   './index.html',
-  './style.css?v=49',
+  './style.css?v=50',
   './bible-data.js',
   './parasha-data.js',
   './parasha-details.js',
+  './torah-guide-data.js',
   './calendar-data.js',
   './hebcal.js',
   './generator.js',
@@ -16,7 +17,7 @@ const urlsToCache = [
   './original-data/hebrew-lexicon.js',
   './original-data/greek-lexicon.js',
   './original-data/kjv1769-strong/index.js',
-  './app.js?v=56',
+  './app.js?v=57',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

@@ -14,8 +14,8 @@ async function fetchHebcalYearData(year = 'now') {
     return bundledItems;
   }
 
-  // s=on: 파라샤(leyning 포함), maj=on: 주요 절기, min=on: 소절기
-  const url = `${HEBCAL_API_BASE}/hebcal?v=1&cfg=json&year=${year}&s=on&maj=on&min=on&mod=on`;
+  // i=on: 이스라엘 절기/토라 주기, s=on: 파라샤(leyning 포함)
+  const url = `${HEBCAL_API_BASE}/hebcal?v=1&cfg=json&year=${year}&i=on&s=on&maj=on&min=on&mod=on`;
   
   try {
     const res = await fetch(url);

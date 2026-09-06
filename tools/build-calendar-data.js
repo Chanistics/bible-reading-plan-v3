@@ -47,7 +47,7 @@ function compactItem(item) {
 async function main() {
   const years = {};
   for (const year of YEARS) {
-    const url = `https://www.hebcal.com/hebcal?v=1&cfg=json&year=${year}&s=on&maj=on&min=on&mod=on`;
+    const url = `https://www.hebcal.com/hebcal?v=1&cfg=json&year=${year}&i=on&s=on&maj=on&min=on&mod=on`;
     const data = await downloadJson(url);
     years[String(year)] = (data.items || [])
       .filter(item => item.category === 'parashat' || item.category === 'holiday')
@@ -57,6 +57,7 @@ async function main() {
   const payload = {
     source: 'Hebcal Jewish Calendar API',
     sourceUrl: 'https://www.hebcal.com/home/developer-apis',
+    calendarStandard: 'israel',
     years
   };
   fs.writeFileSync(OUTPUT, `window.BUNDLED_HEBCAL_DATA = ${JSON.stringify(payload)};\n`, 'utf8');

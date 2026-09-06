@@ -3,11 +3,12 @@
   "version": "3.0.0",
   "private": true,
   "scripts": {
-    "check:syntax": "node --check app.js && node --check generator.js && node --check hebcal.js && node --check sw.js",
+    "check:syntax": "node --check app.js && node --check generator.js && node --check hebcal.js && node --check torah-guide-data.js && node --check sw.js",
     "test:plan": "node test-plan.js",
     "test:calendar": "node tools/validate-calendar-integrity.js",
     "test:coverage": "node tools/validate-reading-plan-coverage.js",
     "test:data": "node tools/validate-original-language-data.js",
-    "test": "node --check app.js && node --check generator.js && node --check hebcal.js && node --check sw.js && node test-plan.js && node tools/validate-calendar-integrity.js && node tools/validate-reading-plan-coverage.js && node tools/validate-original-language-data.js"
+    "test:guide": "node tools/validate-torah-guide-data.js",
+    "test": "node --check app.js && node --check generator.js && node --check hebcal.js && node --check torah-guide-data.js && node --check sw.js && node test-plan.js && node tools/validate-calendar-integrity.js && node tools/validate-reading-plan-coverage.js && node tools/validate-original-language-data.js && node tools/validate-torah-guide-data.js"
   }
 }

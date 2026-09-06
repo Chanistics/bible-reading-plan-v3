@@ -1,7 +1,8 @@
 // app.js
 
 const STATE_KEY = 'parashat_tracker_state';
-const PLAN_KEY_PREFIX = 'parashat_plan_v11_';
+const PLAN_KEY_PREFIX = 'parashat_plan_v12_israel_';
+const LEGACY_PLAN_KEY_PREFIX = 'parashat_plan_v11_';
 const DEFAULT_FAMILY_NAME = "P274";
 const LEGACY_DEFAULT_NAMES = new Set([
   "P274 Bible Reading Plan",
@@ -67,6 +68,7 @@ function createDefaultAppState() {
     overrideToday: null,
     customEvents: [],
     events: [],
+    calendarStandard: null,
     hasEntered: false,
     activeTab: "dashboard"
   };
@@ -141,6 +143,35 @@ function loadAppState() {
 function saveAppState() {
   appState = normalizeAppState(appState);
   safeStorageSet(STATE_KEY, JSON.stringify(appState));
+}
+
+function migrateProgressToIsraelPlan(hYear, israelPlan) {
+  if (appState.calendarStandard === 'israel') return;
+
+  const legacyRaw = safeStorageGet(LEGACY_PLAN_KEY_PREFIX + hYear);
+  if (legacyRaw) {
+    try {
+      const legacyPlan = JSON.parse(legacyRaw);
+      const scheduleFields = ['torah', 'torahCompletion', 'megillah'];
+      Object.entries(appState.progress).forEach(([dateStr, progress]) => {
+        const previousDay = legacyPlan[dateStr];
+        const israelDay = israelPlan[dateStr];
+        if (!progress || !previousDay || !israelDay) return;
+
+        scheduleFields.forEach(field => {
+          if ((previousDay[field] || null) !== (israelDay[field] || null)) {
+            delete progress[field];
+          }
+        });
+      });
+    } catch (error) {
+      console.warn('The previous calendar plan could not be compared during migration.', error);
+    }
+    safeStorageRemove(LEGACY_PLAN_KEY_PREFIX + hYear);
+  }
+
+  appState.calendarStandard = 'israel';
+  saveAppState();
 }
 
 function getPlanDates(plan = currentPlan) {
@@ -279,24 +310,137 @@ function formatReadingRange(chapters, useShortStyle = false) {
   return groupStrings.join(', ');
 }
 
+const TORAH_GUIDE_BOOK_MAP = {
+  Genesis: '창세기',
+  Exodus: '출애굽기',
+  Leviticus: '레위기',
+  Numbers: '민수기',
+  Deuteronomy: '신명기'
+};
+
+function normalizeTorahGuideBook(bookName) {
+  return TORAH_GUIDE_BOOK_MAP[bookName] || bookName;
+}
+
+function parseTorahGuideReading(reading) {
+  if (!reading) return null;
+  const match = String(reading).match(
+    /^(Genesis|Exodus|Leviticus|Numbers|Deuteronomy)\s+(\d+):(\d+)-(?:((?:\d+)):)?(\d+)$/
+  );
+  if (!match) return null;
+  return {
+    book: normalizeTorahGuideBook(match[1]),
+    startChapter: Number(match[2]),
+    startVerse: Number(match[3]),
+    endChapter: Number(match[4] || match[2]),
+    endVerse: Number(match[5])
+  };
+}
+
+function getTorahRangeBounds(range) {
+  return {
+    start: range.startChapter * 1000 + (range.startVerse || 1),
+    end: range.endChapter * 1000 + (range.endVerse || 999)
+  };
+}
+
+function torahRangesOverlap(first, second) {
+  if (!first || !second || first.book !== second.book) return false;
+  const firstBounds = getTorahRangeBounds(first);
+  const secondBounds = getTorahRangeBounds(second);
+  return firstBounds.start <= secondBounds.end && secondBounds.start <= firstBounds.end;
+}
+
+function getTorahGuideMovement(movementId) {
+  const guide = window.TORAH_GUIDE;
+  return guide && guide.movements
+    ? guide.movements.find(movement => movement.id === movementId) || null
+    : null;
+}
+
+function getTorahGuideStagesForRanges(ranges) {
+  const guide = window.TORAH_GUIDE;
+  if (!guide || !Array.isArray(guide.stages) || !ranges.length) return [];
+  return guide.stages.filter(stage => stage.ranges.some(stageRange =>
+    ranges.some(readingRange => torahRangesOverlap(stageRange, readingRange))
+  ));
+}
+
+function getTorahGuideStagesForWeek(weekDateStrs) {
+  const ranges = weekDateStrs
+    .filter(Boolean)
+    .flatMap(dateStr => {
+      const dayData = currentPlan && currentPlan[dateStr];
+      if (!dayData) return [];
+      return [dayData.torah, dayData.torahCompletion]
+        .map(parseTorahGuideReading)
+        .filter(Boolean);
+    });
+  return getTorahGuideStagesForRanges(ranges);
+}
+
+function getTorahGuideStagesForVerse(bookName, chapter, verse) {
+  const normalizedBook = normalizeTorahGuideBook(bookName);
+  const point = {
+    book: normalizedBook,
+    startChapter: Number(chapter),
+    startVerse: Number(verse),
+    endChapter: Number(chapter),
+    endVerse: Number(verse)
+  };
+  return getTorahGuideStagesForRanges([point]);
+}
+
+function renderTorahGuideThreadChips(threads) {
+  return (threads || [])
+    .map(thread => `<span class="torah-guide-thread">${escapeHtml(thread)}</span>`)
+    .join('');
+}
+
+function renderTorahGuideTopic(stage, compact = false) {
+  const movement = getTorahGuideMovement(stage.movementId);
+  return `
+    <article class="torah-guide-topic${compact ? ' compact' : ''}">
+      <div class="torah-guide-topic-number">${stage.number}</div>
+      <div class="torah-guide-topic-content">
+        <div class="torah-guide-topic-meta">${escapeHtml(movement ? `Movement ${movement.id} · ${movement.title}` : stage.reference)}</div>
+        <h5>${escapeHtml(stage.title)}</h5>
+        <div class="torah-guide-topic-reference">${escapeHtml(stage.reference)}</div>
+        <div class="torah-guide-threads">${renderTorahGuideThreadChips(stage.threads)}</div>
+      </div>
+    </article>
+  `;
+}
+
+function renderVerseTorahGuideConnections(bookName, chapter, verse) {
+  const stages = getTorahGuideStagesForVerse(bookName, chapter, verse);
+  if (!stages.length) return '';
+  return `
+    <section class="verse-torah-guide" aria-label="이 절과 연결되는 토라 가이드">
+      <div class="verse-torah-guide-heading">
+        <span>이 절과 연결되는 가이드</span>
+        <strong>${stages.length}</strong>
+      </div>
+      <div class="verse-torah-guide-list">
+        ${stages.map(stage => renderTorahGuideTopic(stage, true)).join('')}
+      </div>
+    </section>
+  `;
+}
+
 // 통독표에 표시할 주요 절기만 정확한 Hebcal 명칭으로 허용합니다.
 const BIBLICAL_HOLIDAY_RULES = [
   { pattern: /^rosh hashanah?(?: \d{4}| ii)?$/, key: 'Rosh Hashana', name: '나팔절 (Rosh Hashana)' },
   { pattern: /^yom kippur$/, key: 'Yom Kippur', name: '대속죄일 (Yom Kippur)' },
   { pattern: /^sukkot(?: (?:i|ii|iii|iv|v|vi|vii)(?: \([^)]*\))?)?$/, key: 'Sukkot', name: '초막절 (Sukkot)' },
-  { pattern: /^shmini atzeret$/, key: 'Shmini Atzeret', name: '쉐미니 아쩨렛 (Shmini Atzeret)' },
-  { pattern: /^simchat torah$/, key: 'Simchat Torah', name: '심하트 토라 (Simchat Torah)' },
+  { pattern: /^shmini atzeret\s*\/\s*simchat torah$/, key: 'Shmini Atzeret / Simchat Torah', name: '쉐미니 아쩨렛 · 심하트 토라' },
+  { pattern: /^shmini atzeret$/, key: 'Shmini Atzeret / Simchat Torah', name: '쉐미니 아쩨렛 · 심하트 토라' },
+  { pattern: /^simchat torah$/, key: 'Shmini Atzeret / Simchat Torah', name: '쉐미니 아쩨렛 · 심하트 토라' },
   { pattern: /^purim$/, key: 'Purim', name: '부림절 (Purim)' },
   { pattern: /^pesach sheni$/, key: 'Pesach Sheni', name: '두 번째 유월절 (Pesach Sheni)' },
   { pattern: /^(?:pesach|passover)(?: (?:i|ii|iii|iv|v|vi|vii|viii)(?: \([^)]*\))?)?$/, key: 'Pesach', name: '유월절 (Pesach)' },
   { pattern: /^shavuot(?: (?:i|ii))?$/, key: 'Shavuot', name: '칠칠절 (Shavuot)' }
 ];
-
-const HOLIDAY_DATE_OVERRIDES = {
-  '나팔절 (Rosh Hashana)': {
-    '2026': '2026-09-12'
-  }
-};
 
 function getBiblicalHolidayRule(name) {
   if (!name) return null;
@@ -314,8 +458,7 @@ function getBiblicalHolidayName(name) {
 }
 
 function normalizeHolidayDateForDisplay(name, dateStr) {
-  const year = String(dateStr || '').slice(0, 4);
-  return (HOLIDAY_DATE_OVERRIDES[name] && HOLIDAY_DATE_OVERRIDES[name][year]) || dateStr;
+  return dateStr;
 }
 
 // 상세 파라샤 설명 매핑 및 더블 포션 처리 지원
@@ -687,6 +830,7 @@ async function initApp() {
     document.getElementById('generating-overlay').classList.add('hidden');
   }
   
+  migrateProgressToIsraelPlan(hYear, plan);
   currentPlan = plan;
 
   // 오늘 날짜가 플랜 범위 내에 있으면 오늘을 선택, 없으면 플랜 첫날 선택
@@ -1224,6 +1368,42 @@ function getWeekSummary(dateStr) {
   };
 }
 
+function renderTodayTorahGuide(dateStr) {
+  const section = document.getElementById('today-torah-guide');
+  const content = document.getElementById('today-torah-guide-content');
+  const openButton = document.getElementById('btn-open-week-guide');
+  if (!section || !content || !openButton) return;
+
+  const summary = getWeekSummary(dateStr);
+  const stages = getTorahGuideStagesForWeek(summary.dates);
+  if (!stages.length) {
+    section.classList.add('hidden');
+    content.replaceChildren();
+    return;
+  }
+
+  const movement = getTorahGuideMovement(stages[0].movementId);
+  const visibleStages = stages.slice(0, 3);
+  content.innerHTML = `
+    <div class="today-guide-movement">
+      <span>Movement ${movement ? movement.id : stages[0].movementId}</span>
+      <strong>${escapeHtml(movement ? movement.title : '')}</strong>
+      ${movement ? `<small>${escapeHtml(movement.range)}</small>` : ''}
+    </div>
+    <div class="today-guide-topic-list">
+      ${visibleStages.map(stage => `
+        <div class="today-guide-topic">
+          <span>${stage.number}</span>
+          <div><strong>${escapeHtml(stage.title)}</strong><small>${escapeHtml(stage.reference)}</small></div>
+        </div>
+      `).join('')}
+    </div>
+    ${stages.length > visibleStages.length ? `<div class="today-guide-more">이 주간에 연결된 주제 ${stages.length - visibleStages.length}개 더 있음</div>` : ''}
+  `;
+  section.classList.remove('hidden');
+  openButton.onclick = () => openParashaDetailModal(summary.dates, summary.parasha, 'guide');
+}
+
 function renderWeeklySchedule(todayStr, days) {
   const summary = getWeekSummary(activeDateStr);
   const totalWeeks = Math.max(...getPlanDates().map(getPlanWeekNumber));
@@ -1497,13 +1677,9 @@ async function renderDashboard() {
           name: '초막절 / 장막절 (Sukkot / Tabernacles)',
           desc: '<strong>성경적 배경:</strong> 출애굽 후 40년간 광야 생활을 하는 동안 하나님께서 이스라엘을 초막 속에서 보호하시고 인도하셨음을 기억하며 지키는 가을 절기입니다(레 23:33-43).<br><br><strong>문화와 의미:</strong> 나뭇가지로 야외에 초막을 지어 거주하며 수확물(수장절)을 주신 하나님께 감사하고, 장차 하나님의 장막이 이 땅에 임하여 만국이 주님과 함께 영원히 거하게 될 메시아 왕국의 완성(계 21:3)을 상징합니다.'
         },
-        'Shmini Atzeret': {
-          name: '쉐미니 아쩨렛 (Shmini Atzeret)',
-          desc: '<strong>성경적 배경:</strong> 초막절 7일 축제가 끝난 바로 다음 날인 8일째에 따로 모이는 거룩한 성회입니다(레 23:36).<br><br><strong>문화와 의미:</strong> 랍비들은 7일간의 초막절이 온 인류를 위한 축제라면, 8일째의 쉐미니 아쩨렛은 하나님께서 이스라엘 자녀들만 따로 조용히 머무르도록 독대하시는 친밀한 시간이라고 설명합니다.'
-        },
-        'Simchat Torah': {
-          name: '심하트 토라 (Simchat Torah)',
-          desc: '<strong>성경적 배경:</strong> 모세오경(토라)의 마지막 신명기 구절을 완독하고, 즉시 다시 창세기 1장 1절을 읽어 새 주기를 시작하는 절기입니다.<br><br><strong>문화와 의미:</strong> 회당에서 모든 토라 두루마리를 꺼내 들고 원을 그리며 춤을 추고(하카포트), 말씀 주신 하나님을 향한 무한한 감사와 기쁨을 선포하며 메시아 그리스도의 영접을 노래합니다.'
+        'Shmini Atzeret / Simchat Torah': {
+          name: '쉐미니 아쩨렛 · 심하트 토라',
+          desc: '<strong>성경적 배경:</strong> 이스라엘에서는 초막절 다음 날인 티슈리월 22일에 쉐미니 아쩨렛과 심하트 토라를 함께 지킵니다(레 23:36).<br><br><strong>문화와 의미:</strong> 거룩한 성회로 모이는 동시에 모세오경의 마지막을 읽고 창세기 첫 부분으로 돌아가 새 토라 주기를 시작합니다.'
         },
         'Purim': {
           name: '부림절 (Purim)',
@@ -1522,6 +1698,8 @@ async function renderDashboard() {
 
     detailBox.innerHTML = detailHtml;
   }
+
+  renderTodayTorahGuide(todayStr);
 
   // 6. 왼쪽 카드: 오늘의 통독 목록
   const realTodayDayOfYear = getPlanDayNumber(todayStr);
@@ -1877,7 +2055,7 @@ function renderCalendar() {
   }
 }
 
-function openParashaDetailModal(weekDateStrs, weekParashaName) {
+function openParashaDetailModal(weekDateStrs, weekParashaName, initialTab = 'overview') {
   const modal = document.getElementById('parasha-detail-modal');
   const titleEl = document.getElementById('parasha-modal-title');
   const bodyEl = document.getElementById('parasha-modal-body');
@@ -1931,6 +2109,32 @@ function openParashaDetailModal(weekDateStrs, weekParashaName) {
     `;
   }).join('');
 
+  const guideStages = getTorahGuideStagesForWeek(visibleDates);
+  const guideMovements = Array.from(new Set(guideStages.map(stage => stage.movementId)))
+    .map(getTorahGuideMovement)
+    .filter(Boolean);
+  const guideQuestions = window.TORAH_GUIDE && Array.isArray(window.TORAH_GUIDE.questions)
+    ? window.TORAH_GUIDE.questions.slice(0, 3)
+    : [];
+  const guideContent = guideStages.length ? `
+    <div class="parasha-guide-movements">
+      ${guideMovements.map(movement => `
+        <div class="parasha-guide-movement">
+          <span>Movement ${movement.id}</span>
+          <strong>${escapeHtml(movement.title)}</strong>
+          <small>${escapeHtml(movement.subtitle)}</small>
+        </div>
+      `).join('')}
+    </div>
+    <div class="parasha-guide-questions">
+      <strong>본문을 읽으며 묻기</strong>
+      <ol>${guideQuestions.map(question => `<li>${escapeHtml(question)}</li>`).join('')}</ol>
+    </div>
+    <div class="parasha-guide-topic-list">
+      ${guideStages.map(stage => renderTorahGuideTopic(stage)).join('')}
+    </div>
+  ` : '<div class="parasha-guide-empty">이 주간의 토라 본문과 직접 연결되는 가이드가 없습니다.</div>';
+
   bodyEl.innerHTML = `
     <section class="parasha-modal-section">
       <div class="parasha-modal-kicker">${escapeHtml(weekRange)}</div>
@@ -1943,20 +2147,49 @@ function openParashaDetailModal(weekDateStrs, weekParashaName) {
       </div>
     </section>
 
-    <section class="parasha-modal-section">
-      <h4 class="parasha-modal-subtitle">배경과 뜻</h4>
-      <div class="parasha-modal-description">
-        ${detail ? detail : '<p>이 주간은 절기 또는 특별 편성으로, 별도 파라샤 배경 설명이 없습니다.</p>'}
-      </div>
-    </section>
+    <div class="parasha-modal-tabs" role="tablist" aria-label="파라샤 상세 메뉴">
+      <button type="button" role="tab" data-parasha-tab="overview" aria-selected="true">개요</button>
+      <button type="button" role="tab" data-parasha-tab="guide" aria-selected="false">탐구 가이드${guideStages.length ? ` <span>${guideStages.length}</span>` : ''}</button>
+      <button type="button" role="tab" data-parasha-tab="schedule" aria-selected="false">7일 일정</button>
+    </div>
 
-    <section class="parasha-modal-section">
-      <h4 class="parasha-modal-subtitle">읽어야 하는 말씀</h4>
-      <div class="parasha-reading-table">
-        ${readingRows}
-      </div>
-    </section>
+    <div class="parasha-modal-panel" data-parasha-panel="overview" role="tabpanel">
+      <section class="parasha-modal-section">
+        <h4 class="parasha-modal-subtitle">배경과 뜻</h4>
+        <div class="parasha-modal-description">
+          ${detail ? detail : '<p>이 주간은 절기 또는 특별 편성으로, 별도 파라샤 배경 설명이 없습니다.</p>'}
+        </div>
+      </section>
+    </div>
+
+    <div class="parasha-modal-panel hidden" data-parasha-panel="guide" role="tabpanel">
+      <section class="parasha-modal-section parasha-guide-section">
+        ${guideContent}
+      </section>
+    </div>
+
+    <div class="parasha-modal-panel hidden" data-parasha-panel="schedule" role="tabpanel">
+      <section class="parasha-modal-section">
+        <h4 class="parasha-modal-subtitle">읽어야 하는 말씀</h4>
+        <div class="parasha-reading-table">${readingRows}</div>
+      </section>
+    </div>
   `;
+
+  const activateTab = tabName => {
+    bodyEl.querySelectorAll('[data-parasha-tab]').forEach(button => {
+      const active = button.dataset.parashaTab === tabName;
+      button.setAttribute('aria-selected', String(active));
+      button.classList.toggle('active', active);
+    });
+    bodyEl.querySelectorAll('[data-parasha-panel]').forEach(panel => {
+      panel.classList.toggle('hidden', panel.dataset.parashaPanel !== tabName);
+    });
+  };
+  bodyEl.querySelectorAll('[data-parasha-tab]').forEach(button => {
+    button.addEventListener('click', () => activateTab(button.dataset.parashaTab));
+  });
+  activateTab(['overview', 'guide', 'schedule'].includes(initialTab) ? initialTab : 'overview');
 
   modal.classList.remove('hidden');
   focusAccessibleModal(modal);
@@ -3227,6 +3460,7 @@ async function renderOriginalLanguagePanel(bookName, chapter, verse) {
   const requestId = ++originalPanelRequestId;
 
   const key = normalizeVerseRefKey(bookName, chapter, verse);
+  const verseGuideHtml = renderVerseTorahGuideConnections(bookName, chapter, verse);
   document.querySelectorAll('.bible-verse-row').forEach(row => {
     const koreanText = row.querySelector('.bible-verse-text');
     const kjvText = row.querySelector('.bible-verse-kjv');
@@ -3255,6 +3489,7 @@ async function renderOriginalLanguagePanel(bookName, chapter, verse) {
           <h4>${escapeHtml(key)}</h4>
         </div>
       </div>
+      ${verseGuideHtml}
       <div class="original-panel-missing">
         <strong>${result.missingReason ? '대응하는 BHSA 원문 절 없음' : '원어 데이터 없음'}</strong>
         <p>${escapeHtml(result.missingReason || '원어 데이터 파일을 읽지 못했습니다. 앱의 original-data 폴더가 함께 있는지 확인해주세요.')}</p>
@@ -3331,6 +3566,8 @@ async function renderOriginalLanguagePanel(bookName, chapter, verse) {
       </div>
       <span class="original-lang-badge">${escapeHtml(languageLabel)}</span>
     </div>
+
+    ${verseGuideHtml}
 
     <section class="original-sentence-section" aria-label="${escapeHtml(`${languageLabel} 원어 문장`)}">
       <div class="original-sentence-heading">

@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="P274">
   
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@700;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=49">
+  <link rel="stylesheet" href="style.css?v=50">
   <link rel="icon" href="icon-192.png" type="image/png">
   <link rel="manifest" href="manifest.json">
 </head>
@@ -24,7 +24,7 @@
         <span class="title-large">P274</span>
         <span class="title-sub">Bible Reading Plan</span>
       </h1>
-      <p class="landing-subtitle">유대력 기준 매일 성경 통독 트래커</p>
+      <p class="landing-subtitle">이스라엘 유대력 기준 매일 성경 통독 트래커</p>
       
       <button id="btn-enter" class="btn-primary btn-large">
         START
@@ -158,6 +158,17 @@
                 <span id="parasha-hebrew-text">...</span>
               </div>
             </div>
+
+            <section id="today-torah-guide" class="today-torah-guide hidden" aria-labelledby="today-torah-guide-title">
+              <div class="today-torah-guide-header">
+                <div>
+                  <span class="today-torah-guide-kicker">토라 읽기 가이드</span>
+                  <h4 id="today-torah-guide-title">이번 주 가이드</h4>
+                </div>
+                <button id="btn-open-week-guide" class="btn-text-action" type="button">전체 보기</button>
+              </div>
+              <div id="today-torah-guide-content"></div>
+            </section>
             
             <!-- Today's Reading Checklist (Preserved) -->
             <div class="reading-checklist-section">
@@ -403,11 +414,12 @@
   <script src="bible-data.js"></script>
   <script src="parasha-data.js"></script>
   <script src="parasha-details.js"></script>
+  <script src="torah-guide-data.js"></script>
   <script src="calendar-data.js"></script>
   <script src="hebcal.js"></script>
   <script src="generator.js"></script>
   <script src="original-language-data.js?v=1"></script>
-  <script src="app.js?v=56"></script>
+  <script src="app.js?v=57"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

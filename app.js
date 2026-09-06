@@ -1,9 +1,10 @@
 // app.js
 
 const STATE_KEY = 'parashat_tracker_state';
-const PLAN_KEY_PREFIX = 'parashat_plan_v8_'; // 캐시 갱신 및 베레시트 주기 맞춤 동적 배분 수정을 반영한 v8 접두사
-const DEFAULT_FAMILY_NAME = "P274 Bible Reading Plan";
+const PLAN_KEY_PREFIX = 'parashat_plan_v9_';
+const DEFAULT_FAMILY_NAME = "P274";
 const LEGACY_DEFAULT_NAMES = new Set([
+  "P274 Bible Reading Plan",
   "P274 v3",
   "P274 Reading Plan 2.5",
   "P274 2.5"
@@ -20,6 +21,38 @@ let appState = {
 
 let currentPlan = null;
 let activeDateStr = null; // 선택된 날짜 (기본: 오늘)
+const memoryStorage = new Map();
+let appInitializationPromise = null;
+let appUiInitialized = false;
+
+function safeStorageGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (error) {
+    console.warn('Persistent storage is unavailable; using memory storage.', error);
+    return memoryStorage.has(key) ? memoryStorage.get(key) : null;
+  }
+}
+
+function safeStorageSet(key, value) {
+  memoryStorage.set(key, value);
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    console.warn('Persistent storage write failed; data will last for this session only.', error);
+    return false;
+  }
+}
+
+function safeStorageRemove(key) {
+  memoryStorage.delete(key);
+  try {
+    localStorage.removeItem(key);
+  } catch (error) {
+    console.warn('Persistent storage removal failed.', error);
+  }
+}
 
 function createDefaultAppState() {
   return {
@@ -89,7 +122,7 @@ function normalizeAppState(rawState = {}) {
 }
 
 function loadAppState() {
-  const savedState = localStorage.getItem(STATE_KEY);
+  const savedState = safeStorageGet(STATE_KEY);
   if (!savedState) return createDefaultAppState();
 
   try {
@@ -102,7 +135,7 @@ function loadAppState() {
 
 function saveAppState() {
   appState = normalizeAppState(appState);
-  localStorage.setItem(STATE_KEY, JSON.stringify(appState));
+  safeStorageSet(STATE_KEY, JSON.stringify(appState));
 }
 
 function getPlanDates(plan = currentPlan) {
@@ -323,7 +356,9 @@ function getTodayStr() {
 async function getCurrentHebrewYear() {
   const todayStr = getTodayStr();
   const res = await fetch(`https://www.hebcal.com/converter?cfg=json&date=${todayStr}&g2h=1`);
+  if (!res.ok) throw new Error(`Hebcal converter returned status ${res.status}`);
   const data = await res.json();
+  if (!data || !data.hy) throw new Error('Hebcal converter response has no Hebrew year');
   return data.hy.toString();
 }
 
@@ -339,7 +374,43 @@ async function findBereshitSunday(hYear) {
     sunDate.setUTCDate(satDate.getUTCDate() - 6); // 토요일에서 6일 전 = 일요일
     return sunDate.toISOString().split('T')[0];
   }
-  return `${gYear}-10-12`; // fallback 기본값
+  throw new Error(`Parashat Bereshit was not found for ${hYear}`);
+}
+
+function getFallbackPlanYear(dateStr) {
+  const years = window.BUNDLED_HEBCAL_DATA && window.BUNDLED_HEBCAL_DATA.years;
+  const cycles = [];
+  Object.entries(years || {}).forEach(([gregorianYear, items]) => {
+    const bereshit = (items || []).find(item => item.category === 'parashat' && item.title === 'Parashat Bereshit');
+    if (!bereshit) return;
+    const saturday = new Date(`${bereshit.date}T00:00:00Z`);
+    saturday.setUTCDate(saturday.getUTCDate() - 6);
+    cycles.push({
+      start: saturday.toISOString().split('T')[0],
+      hYear: String(Number(gregorianYear) + 3761)
+    });
+  });
+  cycles.sort((a, b) => a.start.localeCompare(b.start));
+  const activeCycle = cycles.filter(cycle => cycle.start <= dateStr).pop();
+  if (activeCycle) return activeCycle.hYear;
+  return '5786';
+}
+
+function hasBundledPlanCycle(hYear) {
+  const years = window.BUNDLED_HEBCAL_DATA && window.BUNDLED_HEBCAL_DATA.years;
+  const gregorianYear = Number(hYear) - 3761;
+  return [gregorianYear, gregorianYear + 1].every(year => {
+    const items = years && years[String(year)];
+    return Array.isArray(items) && items.some(item => item.category === 'parashat' && item.title === 'Parashat Bereshit');
+  });
+}
+
+function isValidGeneratedPlan(plan) {
+  if (!plan || typeof plan !== 'object') return false;
+  const days = Object.values(plan);
+  const parashaDays = days.filter(day => day && day.parasha).length;
+  const holidayDays = days.filter(day => day && Array.isArray(day.holidays) && day.holidays.length).length;
+  return days.length >= 350 && parashaDays >= 300 && holidayDays >= 10;
 }
 
 // 유대력 첫날(플랜 시작일)로부터 경과 일수 구하기 - 타임존 영향 없음
@@ -480,17 +551,11 @@ async function initApp() {
   document.body.classList.toggle('light-mode', savedMode === 'light');
 
   // 현재 유대력 연도 기준 플랜 생성 (Bereshit 시작주간 기준 연도 판정)
-  let hYear = "5786";
-  try {
+  const todayStr = getTodayStr();
+  let hYear = getFallbackPlanYear(todayStr);
+  if (!hasBundledPlanCycle(hYear)) try {
     const calendarHYear = await getCurrentHebrewYear();
     let bereshitSunday = await findBereshitSunday(calendarHYear);
-    
-    // 5787 베레시트 특별 대응 (토요일 시작 적용)
-    if (calendarHYear === "5787") {
-      bereshitSunday = "2026-10-10";
-    }
-    
-    const todayStr = getTodayStr();
     
     // 오늘 날짜가 해당 유대력 연도의 Bereshit 시작일 이전이면, 아직 이전 연도의 독서 주기입니다.
     if (todayStr < bereshitSunday) {
@@ -504,45 +569,35 @@ async function initApp() {
       hYear = "5786";
     }
   } catch (e) {
-    console.error("Failed to get Hebrew year dynamically, fallback to 5786", e);
-    hYear = "5786";
+    console.error('Failed to get Hebrew year dynamically; using the bundled cycle boundary.', e);
+    hYear = getFallbackPlanYear(todayStr);
   }
 
   const planKey = PLAN_KEY_PREFIX + hYear;
-  let plan = localStorage.getItem(planKey);
+  let plan = safeStorageGet(planKey);
+
+  if (plan) {
+    try {
+      plan = JSON.parse(plan);
+      if (!isValidGeneratedPlan(plan)) {
+        safeStorageRemove(planKey);
+        plan = null;
+      }
+    } catch (error) {
+      safeStorageRemove(planKey);
+      plan = null;
+    }
+  }
 
   if (!plan) {
     document.getElementById('generating-overlay').classList.remove('hidden');
     
     // 유대력 첫날(Bereshit 주간 일요일) 산출
-    let startDateStr = "2025-10-12";
-    try {
-      startDateStr = await findBereshitSunday(hYear);
-    } catch (e) {
-      console.error("Failed to find Bereshit Sunday, using fallback", e);
-    }
-    
-    // 5787 베레시트 시작일 특별 대응 (토요일 시작 적용)
-    if (hYear === "5787") {
-      startDateStr = "2026-10-10";
-    }
+    const startDateStr = await findBereshitSunday(hYear);
     
     // 다음 유대력 연도의 Bereshit 주간 일요일 산출하여 총 일수 계산 (베레시트 주기에 맞춘 유연한 사이클 일수)
     const nextHYear = (Number(hYear) + 1).toString();
-    let nextStartDateStr = "2026-10-04";
-    try {
-      nextStartDateStr = await findBereshitSunday(nextHYear);
-    } catch (e) {
-      console.error("Failed to find next Bereshit Sunday", e);
-      const d = new Date(startDateStr);
-      d.setDate(d.getDate() + 365);
-      nextStartDateStr = d.toISOString().split('T')[0];
-    }
-    
-    // 5786 -> 5787 베레시트 전환일 특별 대응 (토요일 시작 적용)
-    if (hYear === "5786") {
-      nextStartDateStr = "2026-10-10";
-    }
+    const nextStartDateStr = await findBereshitSunday(nextHYear);
     
     const dStart = new Date(startDateStr);
     const dNextStart = new Date(nextStartDateStr);
@@ -556,29 +611,37 @@ async function initApp() {
     const items1 = await window.HebcalAPI.fetchHebcalYearData(startGYear.toString());
     const items2 = await window.HebcalAPI.fetchHebcalYearData(endGYear.toString());
     const hebcalItems = [...items1, ...items2];
+    const hasCalendarData = hebcalItems.some(item => item.category === 'parashat') &&
+      hebcalItems.some(item => item.category === 'holiday');
+    if (!hasCalendarData) {
+      throw new Error('Hebcal calendar data is incomplete. The plan was not cached.');
+    }
     
     const newPlan = window.Generator.generateHebrewYearPlan(hebcalItems, startDateStr, totalDays);
-    localStorage.setItem(planKey, JSON.stringify(newPlan));
+    if (!isValidGeneratedPlan(newPlan)) {
+      throw new Error('Generated plan failed completeness checks.');
+    }
+    safeStorageSet(planKey, JSON.stringify(newPlan));
     plan = newPlan;
     document.getElementById('generating-overlay').classList.add('hidden');
-  } else {
-    plan = JSON.parse(plan);
   }
   
   currentPlan = plan;
 
   // 오늘 날짜가 플랜 범위 내에 있으면 오늘을 선택, 없으면 플랜 첫날 선택
-  const todayStr = getTodayStr();
   if (currentPlan[todayStr]) {
     activeDateStr = todayStr;
   } else {
     activeDateStr = getPlanDates()[0];
   }
 
-  // Tab Setup
-  setupTabs();
-  setupModalEventActions();
-  setupParashaModalActions();
+  if (!appUiInitialized) {
+    setupTabs();
+    setupModalEventActions();
+    setupParashaModalActions();
+    setupModalAccessibility();
+    appUiInitialized = true;
+  }
 
   // 화면 렌더링 (이전 활성화된 탭 복원)
   const tabToActivate = appState.activeTab || 'dashboard';
@@ -594,11 +657,54 @@ async function initApp() {
   setupMidnightTimer();
 }
 
+function showAppPages() {
+  document.getElementById('landing-page').classList.remove('active');
+  document.getElementById('dashboard-page').classList.add('active');
+}
+
+function showInitializationError(error) {
+  const overlay = document.getElementById('generating-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  overlay.replaceChildren();
+  const message = document.createElement('div');
+  message.className = 'gen-text';
+  message.textContent = '통독 달력 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
+  const retry = document.createElement('button');
+  retry.type = 'button';
+  retry.className = 'btn-primary';
+  retry.textContent = '다시 시도';
+  retry.addEventListener('click', () => enterApplication({ resetActiveTab: false }));
+  overlay.append(message, retry);
+  console.error('Application initialization failed.', error);
+}
+
+async function enterApplication({ resetActiveTab = false } = {}) {
+  showAppPages();
+  appState = loadAppState();
+  appState.hasEntered = true;
+  if (resetActiveTab) appState.activeTab = 'dashboard';
+  saveAppState();
+
+  if (!appInitializationPromise) {
+    appInitializationPromise = initApp().catch(error => {
+      appInitializationPromise = null;
+      showInitializationError(error);
+      throw error;
+    });
+  }
+  try {
+    await appInitializationPromise;
+  } catch (error) {
+    // The retry control displayed above owns the recovery path.
+  }
+}
+
 // 실시간 날짜 변경 감지 및 자동 갱신
 let lastCheckedDateStr = getTodayStr();
 let midnightTimer = null;
 
-function checkDateTransition() {
+async function checkDateTransition() {
   const currentTodayStr = getTodayStr();
   if (currentTodayStr !== lastCheckedDateStr) {
     console.log("Real-time date transition detected. Refreshing app date from " + lastCheckedDateStr + " to " + currentTodayStr);
@@ -606,6 +712,12 @@ function checkDateTransition() {
     
     if (!appState || !appState.overrideToday) {
       activeDateStr = currentTodayStr;
+    }
+
+    if (!currentPlan || !currentPlan[currentTodayStr]) {
+      appInitializationPromise = null;
+      await enterApplication({ resetActiveTab: false });
+      return;
     }
     
     renderDashboard();
@@ -641,8 +753,12 @@ function setupTabs() {
     btn.addEventListener('click', () => {
       const targetTab = btn.getAttribute('data-tab');
       
-      document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-item').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+      });
       btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
       
       document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
       const pane = document.getElementById(`tab-content-${targetTab}`);
@@ -717,7 +833,12 @@ function setupTabs() {
       calendarCurrentDate = null; // 달력 월 초기화
       saveAppState();
       alert(`오늘 날짜가 ${val}로 지정되었습니다.`);
-      renderDashboard();
+      if (!currentPlan || !currentPlan[val]) {
+        appInitializationPromise = null;
+        enterApplication({ resetActiveTab: false });
+      } else {
+        renderDashboard();
+      }
     }
   });
 
@@ -735,7 +856,12 @@ function setupTabs() {
     
     document.getElementById('input-override-date').value = realToday;
     alert(`실제 오늘 날짜(${realToday})로 리셋되었습니다.`);
-    renderDashboard();
+    if (!currentPlan || !currentPlan[realToday]) {
+      appInitializationPromise = null;
+      enterApplication({ resetActiveTab: false });
+    } else {
+      renderDashboard();
+    }
   });
 
   // Ticker 일괄 완료 체크 버튼
@@ -755,21 +881,73 @@ function setupTabs() {
     if (box.style.display === 'none') {
       box.style.display = 'block';
       btn.textContent = '▲';
+      btn.setAttribute('aria-expanded', 'true');
+      btn.setAttribute('aria-label', '파라샤 히브리어 접기');
     } else {
       box.style.display = 'none';
       btn.textContent = '▼';
+      btn.setAttribute('aria-expanded', 'false');
+      btn.setAttribute('aria-label', '파라샤 히브리어 펼치기');
     }
   });
 
   // 본문 읽기 창 닫기 버튼 리스너
   document.getElementById('btn-close-reader').addEventListener('click', () => {
-    document.getElementById('bible-reader-modal').classList.add('hidden');
+    closeAccessibleModal(document.getElementById('bible-reader-modal'));
   });
 
   // 본문 읽기 창 바깥 클릭 시 닫기
   document.getElementById('bible-reader-modal').addEventListener('click', (e) => {
     if (e.target.id === 'bible-reader-modal') {
-      document.getElementById('bible-reader-modal').classList.add('hidden');
+      closeAccessibleModal(document.getElementById('bible-reader-modal'));
+    }
+  });
+}
+
+const modalFocusOrigins = new WeakMap();
+
+function focusAccessibleModal(modal) {
+  if (!modal) return;
+  if (document.activeElement instanceof HTMLElement) {
+    modalFocusOrigins.set(modal, document.activeElement);
+  }
+  requestAnimationFrame(() => {
+    const target = modal.querySelector('.btn-close, button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    if (target) target.focus({ preventScroll: true });
+  });
+}
+
+function closeAccessibleModal(modal) {
+  if (!modal) return;
+  modal.classList.add('hidden');
+  const origin = modalFocusOrigins.get(modal);
+  if (origin && origin.isConnected) origin.focus({ preventScroll: true });
+}
+
+function setupModalAccessibility() {
+  document.addEventListener('keydown', event => {
+    const openModals = Array.from(document.querySelectorAll('.modal-overlay:not(.hidden)'));
+    const modal = openModals[openModals.length - 1];
+    if (!modal) return;
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeAccessibleModal(modal);
+      return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const focusable = Array.from(modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+      .filter(element => element.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
     }
   });
 }
@@ -832,7 +1010,7 @@ async function renderDashboard() {
   document.getElementById('stat-completed-val').textContent = `${stats.completedDays} / ${stats.totalDays || getPlanTotalDays()}`;
 
   // 3. 유대력 및 절기 정보 헤더 영역 동적 로드
-  const hebDateObj = await window.HebcalAPI.convertToHebrewDate(todayStr);
+  const hebDateObj = getHebrewDateNatively(todayStr);
   const tParts = todayStr.split('-');
   const gYr = parseInt(tParts[0], 10);
   const gMon = parseInt(tParts[1], 10);
@@ -1134,16 +1312,7 @@ function createChecklistItem(type, label, title, isDone, dateStr, passageData) {
 
 // 랜딩 페이지 -> 진입
 document.getElementById('btn-enter').addEventListener('click', () => {
-  document.getElementById('landing-page').classList.remove('active');
-  document.getElementById('dashboard-page').classList.add('active');
-  
-  // 기기 진입 여부 및 활성 탭 상태 기록
-  appState = loadAppState();
-  appState.hasEntered = true;
-  appState.activeTab = 'dashboard';
-  saveAppState();
-  
-  initApp();
+  enterApplication({ resetActiveTab: true });
 });
 
 // 3. 연간 뷰 렌더링 (주별 보기 탭) - 연간 주차(1~53주차)별 정렬
@@ -1289,17 +1458,26 @@ function getHebrewDateNatively(dateStr) {
     const monthVal = monthFormatter.format(dateObj);
     
     // 히브리어 표기
-    const hebFormatter = new Intl.DateTimeFormat('he-u-ca-hebrew', { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+    const yearFormatter = new Intl.DateTimeFormat('en-u-ca-hebrew', { year: 'numeric', timeZone: 'UTC' });
+    const yearVal = yearFormatter.format(dateObj).replace(/[^0-9]/g, '');
+
+    const hebFormatter = new Intl.DateTimeFormat('he-u-ca-hebrew', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC'
+    });
     const hebVal = hebFormatter.format(dateObj);
     
     return {
       hd: dayVal,
       hm: monthVal,
+      hy: yearVal,
       hebrew: hebVal
     };
   } catch (e) {
     console.error("Intl Hebrew translation failed, fallback", e);
-    return { hd: '', hm: '', hebrew: '' };
+    return { hd: '', hm: '', hy: '', hebrew: '' };
   }
 }
 
@@ -1530,12 +1708,13 @@ function openParashaDetailModal(weekDateStrs, weekParashaName) {
   `;
 
   modal.classList.remove('hidden');
+  focusAccessibleModal(modal);
 }
 
 function closeParashaDetailModal() {
   const modal = document.getElementById('parasha-detail-modal');
   if (modal) {
-    modal.classList.add('hidden');
+    closeAccessibleModal(modal);
   }
 }
 
@@ -1675,12 +1854,15 @@ function getBookNumber(bookNameKOR) {
 }
 
 const ORIGINAL_DATA_BASE = 'original-data';
+const KOREAN_DATA_BASE = 'korean-data';
 let originalLanguageIndexPromise = null;
 let hebrewLexiconPromise = null;
 let greekLexiconPromise = null;
 let kjv1769StrongIndexPromise = null;
+let koreanBibleIndexPromise = null;
 const originalLanguageBookCache = {};
 const kjv1769StrongBookCache = {};
+const koreanBibleBookCache = {};
 const originalLanguageScriptPromises = {};
 const ORIGINAL_BOOK_NAME_ALIASES = {
   '예레미야 애가': '예레미야애가',
@@ -1700,6 +1882,8 @@ const KJV1769_STRONG_BOOK_NAME_ALIASES = {
 };
 
 let bibleReaderRestoreState = null;
+let originalPanelRequestId = 0;
+let bibleReaderRequestId = 0;
 
 function normalizeVerseRefKey(bookName, chapter, verse) {
   if (!bookName || !chapter || !verse) return '';
@@ -1711,14 +1895,22 @@ function normalizeOriginalWord(row) {
     return {
       original: row[0] || '',
       transliteration: row[1] || '',
-      meaningKo: row[2] || row[3] || '',
+      meaningKo: row[2] || '',
       strong: row[3] || '',
       lemma: row[4] || '',
       morph: row[5] || '',
-      morphKo: row[6] || ''
+      morphKo: row[6] || '',
+      gloss: row[7] || '',
+      kjvText: row[8] || '',
+      strongOccurrence: Number(row[9]) || 0,
+      hasExplicitKjvAlignment: row.length >= 9
     };
   }
-  return row || {};
+  if (!row || typeof row !== 'object') return {};
+  return {
+    ...row,
+    hasExplicitKjvAlignment: Object.prototype.hasOwnProperty.call(row, 'kjvText')
+  };
 }
 
 const ORIGINAL_ENGLISH_GLOSS_KO = {
@@ -2135,6 +2327,7 @@ async function loadOriginalLanguageIndex() {
     originalLanguageIndexPromise = loadOriginalLanguageScript(`${ORIGINAL_DATA_BASE}/index.js`, 'original-language-index')
       .then(() => window.ORIGINAL_LANGUAGE_INDEX || null)
       .catch(err => {
+        originalLanguageIndexPromise = null;
         console.warn('Original language index unavailable.', err);
         return null;
       });
@@ -2157,6 +2350,7 @@ async function loadOriginalBookData(bookName) {
         return books[bookMeta.step] || null;
       })
       .catch(err => {
+        delete originalLanguageBookCache[bookMeta.file];
         console.warn(`Original language book unavailable: ${bookName}`, err);
         return null;
       });
@@ -2170,6 +2364,7 @@ async function loadHebrewLexicon() {
     hebrewLexiconPromise = loadOriginalLanguageScript(`${ORIGINAL_DATA_BASE}/hebrew-lexicon.js`, 'hebrew-lexicon')
       .then(() => window.HEBREW_LEXICON || null)
       .catch(err => {
+        hebrewLexiconPromise = null;
         console.warn('Hebrew lexicon unavailable.', err);
         return null;
       });
@@ -2183,6 +2378,7 @@ async function loadGreekLexicon() {
     greekLexiconPromise = loadOriginalLanguageScript(`${ORIGINAL_DATA_BASE}/greek-lexicon.js`, 'greek-lexicon')
       .then(() => window.GREEK_LEXICON || null)
       .catch(err => {
+        greekLexiconPromise = null;
         console.warn('Greek lexicon unavailable.', err);
         return null;
       });
@@ -2196,6 +2392,7 @@ async function loadKjv1769StrongIndex() {
     kjv1769StrongIndexPromise = loadOriginalLanguageScript(`${ORIGINAL_DATA_BASE}/kjv1769-strong/index.js`, 'kjv1769-strong-index')
       .then(() => window.KJV1769_STRONG_INDEX || null)
       .catch(err => {
+        kjv1769StrongIndexPromise = null;
         console.warn('KJV1769 Strong index unavailable.', err);
         return null;
       });
@@ -2218,11 +2415,42 @@ async function loadKjv1769StrongBookData(bookName) {
         return books[bookMeta.osis] || null;
       })
       .catch(err => {
+        delete kjv1769StrongBookCache[bookMeta.file];
         console.warn(`KJV1769 Strong book unavailable: ${bookName}`, err);
         return null;
       });
   }
   return kjv1769StrongBookCache[bookMeta.file];
+}
+
+async function loadKoreanBibleIndex() {
+  if (window.KOREAN_BIBLE_INDEX) return window.KOREAN_BIBLE_INDEX;
+  if (!koreanBibleIndexPromise) {
+    koreanBibleIndexPromise = loadOriginalLanguageScript(`${KOREAN_DATA_BASE}/index.js`, 'korean-bible-index')
+      .then(() => window.KOREAN_BIBLE_INDEX || null)
+      .catch(err => {
+        koreanBibleIndexPromise = null;
+        console.warn('Local Korean Bible index unavailable.', err);
+        return null;
+      });
+  }
+  return koreanBibleIndexPromise;
+}
+
+async function loadKoreanBibleBookData(bookNumber) {
+  const index = await loadKoreanBibleIndex();
+  const bookMeta = index && index.books ? index.books[Number(bookNumber)] : null;
+  if (!bookMeta || !bookMeta.file) return null;
+  if (!koreanBibleBookCache[bookMeta.file]) {
+    koreanBibleBookCache[bookMeta.file] = loadOriginalLanguageScript(`${KOREAN_DATA_BASE}/${bookMeta.file}`, `korean-bible-${Number(bookNumber)}`)
+      .then(() => (window.KOREAN_BIBLE_BOOKS || {})[Number(bookNumber)] || null)
+      .catch(err => {
+        delete koreanBibleBookCache[bookMeta.file];
+        console.warn(`Local Korean Bible book unavailable: ${bookNumber}`, err);
+        return null;
+      });
+  }
+  return koreanBibleBookCache[bookMeta.file];
 }
 
 function loadOriginalLanguageScript(src, id) {
@@ -2248,7 +2476,11 @@ function loadOriginalLanguageScript(src, id) {
       script.dataset.loaded = 'true';
       resolve();
     };
-    script.onerror = () => reject(new Error(`Script load failed: ${src}`));
+    script.onerror = () => {
+      delete originalLanguageScriptPromises[src];
+      script.remove();
+      reject(new Error(`Script load failed: ${src}`));
+    };
     document.head.appendChild(script);
   });
 
@@ -2365,6 +2597,7 @@ function getLexiconRefs(entry, limit = 8) {
 function getBibleHubStrongUrl(strongKey) {
   const match = String(strongKey || '').match(/^([HG])0*(\d+)$/i);
   if (!match) return '';
+  if (STRUCTURAL_HEBREW_STRONGS.has(normalizeStrongKey(strongKey))) return '';
   const section = match[1].toUpperCase() === 'H' ? 'hebrew' : 'greek';
   return `https://biblehub.com/${section}/${Number(match[2])}.htm`;
 }
@@ -2372,7 +2605,7 @@ function getBibleHubStrongUrl(strongKey) {
 function renderStrongCodeLink(strongKey) {
   const url = getBibleHubStrongUrl(strongKey);
   const label = strongKey || '-';
-  if (!url) return `<span>${escapeHtml(label)}</span>`;
+  if (!url) return `<span class="original-strong-label" title="OpenHebrewBible 형태소 코드">${escapeHtml(label)}</span>`;
   return `<a class="original-strong-link" href="${escapeHtml(url)}" title="Bible Hub에서 ${escapeHtml(label)} 보기" data-strong-link="true">${escapeHtml(label)}</a>`;
 }
 
@@ -2426,6 +2659,9 @@ function getAlignmentCandidates(word, lexiconEntry, verseText = '') {
 }
 
 function getKjvAlignmentCandidates(word, kjvStrongItems = []) {
+  if (word && word.hasExplicitKjvAlignment) {
+    return String(word.kjvText || '').trim() ? [String(word.kjvText).trim()] : [];
+  }
   const strongKey = normalizeStrongKey(word && word.strong);
   if (!strongKey) return [];
   if (word && word.strongOccurrence) {
@@ -2438,16 +2674,14 @@ function getKjvAlignmentCandidates(word, kjvStrongItems = []) {
       }
     }
   }
-  if (word && word.kjvText) return [String(word.kjvText).trim()].filter(Boolean);
-  return Array.from(new Set(
-    (kjvStrongItems || [])
-      .filter(item => item && item[0] === strongKey)
-      .map(item => String(item[1] || '').trim())
-      .filter(Boolean)
-  )).slice(0, 8);
+  return [];
 }
 
 function getKjvAlignmentMatch(word, kjvStrongItems = []) {
+  if (word && word.hasExplicitKjvAlignment) {
+    const phrase = String(word.kjvText || '').trim();
+    return phrase ? { phrase, source: 'explicit' } : null;
+  }
   const strongKey = normalizeStrongKey(word && word.strong);
   const targetOccurrence = Number(word && word.strongOccurrence) || 1;
   if (!strongKey) return null;
@@ -2611,6 +2845,10 @@ async function getOriginalLanguageEntry(bookName, chapter, verse) {
     };
   }
 
+  const index = await loadOriginalLanguageIndex();
+  const missingReason = index && index.knownMissingVerses ? index.knownMissingVerses[key] : '';
+  if (missingReason) return { key, entry: null, missingReason };
+
   const seed = window.ORIGINAL_LANGUAGE_SEED_DATA || {};
   if (seed[key]) {
     return {
@@ -2711,6 +2949,7 @@ function restoreBibleReaderAfterReturn() {
 
   if (modalTitle && restoreState.title) modalTitle.textContent = restoreState.title;
   modal.classList.remove('hidden');
+  focusAccessibleModal(modal);
   if (loading) loading.classList.add('hidden');
   if (errorContainer) errorContainer.classList.add('hidden');
   textContainer.innerHTML = restoreState.html;
@@ -2734,6 +2973,7 @@ function restoreBibleReaderAfterReturn() {
 async function renderOriginalLanguagePanel(bookName, chapter, verse) {
   const panel = document.getElementById('original-language-panel');
   if (!panel) return;
+  const requestId = ++originalPanelRequestId;
 
   const key = normalizeVerseRefKey(bookName, chapter, verse);
   document.querySelectorAll('.bible-verse-row').forEach(row => {
@@ -2753,6 +2993,7 @@ async function renderOriginalLanguagePanel(bookName, chapter, verse) {
   `;
 
   const result = await getOriginalLanguageEntry(bookName, chapter, verse);
+  if (requestId !== originalPanelRequestId) return;
   const entry = result.entry;
 
   if (!entry || !entry.words || entry.words.length === 0) {
@@ -2764,9 +3005,9 @@ async function renderOriginalLanguagePanel(bookName, chapter, verse) {
         </div>
       </div>
       <div class="original-panel-missing">
-        <strong>원어 데이터 없음</strong>
-        <p>이 절의 원어 데이터가 아직 로드되지 않았습니다. 앱 폴더 안의 <code>original-data</code> 폴더가 함께 있는지 확인해주세요.</p>
-        <span>구약은 히브리어 원어 데이터, 신약은 TRx/KJV1769x 기준 헬라어 데이터로 표시됩니다.</span>
+        <strong>${result.missingReason ? '대응하는 BHSA 원문 절 없음' : '원어 데이터 없음'}</strong>
+        <p>${escapeHtml(result.missingReason || '원어 데이터 파일을 읽지 못했습니다. 앱의 original-data 폴더가 함께 있는지 확인해주세요.')}</p>
+        <span>구약은 OpenHebrewBible의 KJV 절 번호 매핑, 신약은 TRx/KJV1769x Strong 매핑 기준입니다.</span>
       </div>
     `;
     return;
@@ -2778,7 +3019,9 @@ async function renderOriginalLanguagePanel(bookName, chapter, verse) {
   } else if (entry.language === 'greek') {
     await loadGreekLexicon();
   }
+  if (requestId !== originalPanelRequestId) return;
   const kjv1769StrongBookData = await loadKjv1769StrongBookData(bookName);
+  if (requestId !== originalPanelRequestId) return;
   const kjvVerseData = kjv1769StrongBookData && kjv1769StrongBookData.verses
     ? (kjv1769StrongBookData.verses[`${Number(chapter)}:${Number(verse)}`] || null)
     : null;
@@ -2800,8 +3043,7 @@ async function renderOriginalLanguagePanel(bookName, chapter, verse) {
       ? getLexiconPronunciationEn(lexiconEntry, word)
       : word.transliteration;
     const kjvMatch = getKjvAlignmentMatch(alignmentWord, kjvStrongItems);
-    const kjvCandidates = getKjvAlignmentCandidates(alignmentWord, kjvStrongItems);
-    const exactKjvPhrase = (kjvMatch && kjvMatch.phrase) || word.kjvText || kjvCandidates[0] || '';
+    const exactKjvPhrase = (kjvMatch && kjvMatch.phrase) || '';
     sentenceKjvPhrases[index] = exactKjvPhrase;
     return `
       <div class="original-word-card" tabindex="0">
@@ -2975,11 +3217,22 @@ function parseKoreanReference(korRef) {
 async function fetchBibleChapterPair(bookNumber, chapter, bookNameKOR) {
   const koreanUrl = `https://api.getbible.net/v2/korean/${bookNumber}/${chapter}.json`;
 
-  const koreanPromise = fetch(koreanUrl)
-    .then(res => {
-      if (!res.ok) throw new Error(`Korean API returned status ${res.status}`);
-      return res.json();
-    });
+  const koreanPromise = loadKoreanBibleBookData(bookNumber).then(async localBook => {
+    const localVerses = localBook && localBook.chapters ? localBook.chapters[Number(chapter)] : null;
+    if (Array.isArray(localVerses)) {
+      return {
+        chapter: Number(chapter),
+        book_name: localBook.name || bookNameKOR,
+        verses: localVerses.map(([verse, text]) => ({ chapter: Number(chapter), verse, text }))
+      };
+    }
+    const res = await fetch(koreanUrl);
+    if (!res.ok) throw new Error(`Korean API returned status ${res.status}`);
+    return res.json();
+  }).catch(err => {
+    console.warn(`Korean chapter unavailable: ${bookNameKOR} ${chapter}`, err);
+    return null;
+  });
 
   const kjvPromise = loadKjv1769StrongBookData(bookNameKOR)
     .catch(err => {
@@ -2999,16 +3252,30 @@ async function fetchBibleChapterPair(bookNumber, chapter, bookNameKOR) {
     });
   }
 
+  if (!koreanData && Object.keys(kjvVersesByNumber).length === 0) {
+    throw new Error(`No local or remote scripture data for ${bookNameKOR} ${chapter}`);
+  }
+  const verses = koreanData && Array.isArray(koreanData.verses)
+    ? koreanData.verses
+    : Object.keys(kjvVersesByNumber).map(Number).sort((a, b) => a - b).map(verse => ({
+        chapter: Number(chapter),
+        verse,
+        text: ''
+      }));
+
   return {
-    ...koreanData,
+    ...(koreanData || {}),
+    verses,
     __bookNameKOR: bookNameKOR,
     __chapter: chapter,
-    __kjvVersesByNumber: kjvVersesByNumber
+    __kjvVersesByNumber: kjvVersesByNumber,
+    __koreanUnavailable: !koreanData
   };
 }
 
 // getBible API v2를 호출하여 성경 구절을 가져온 뒤 모달 창에 시각화
 async function openBibleReader(title, passageData) {
+  const requestId = ++bibleReaderRequestId;
   const modal = document.getElementById('bible-reader-modal');
   const modalTitle = document.getElementById('bible-reader-title');
   const loading = modal.querySelector('.bible-loading');
@@ -3017,10 +3284,11 @@ async function openBibleReader(title, passageData) {
   const originalPanel = document.getElementById('original-language-panel');
   
   // 모달 타이틀 설정
-  modalTitle.innerHTML = `${title} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted); margin-left: 0.5rem; vertical-align: middle;">(개역한글 · KJV)</span>`;
+  modalTitle.innerHTML = `${escapeHtml(title)} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted); margin-left: 0.5rem; vertical-align: middle;">(개역한글 · KJV)</span>`;
   
   // 모달을 표시하고 로딩 상태 시작
   modal.classList.remove('hidden');
+  focusAccessibleModal(modal);
   loading.classList.remove('hidden');
   textContainer.classList.add('hidden');
   errorContainer.classList.add('hidden');
@@ -3063,6 +3331,7 @@ async function openBibleReader(title, passageData) {
     }
     
     const chaptersData = await Promise.all(fetchPromises);
+    if (requestId !== bibleReaderRequestId) return;
     
     loading.classList.add('hidden');
     
@@ -3088,7 +3357,10 @@ async function openBibleReader(title, passageData) {
         });
       }
       
-      html += `<h4 style="color: var(--gold); font-size: 1.15rem; margin-top: 1.5rem; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.35rem; font-family: 'Noto Serif KR', serif; font-weight: 700;">${bookNameKOR} ${chNum}장</h4>`;
+      const koreanStatus = chapterData.__koreanUnavailable
+        ? '<span class="bible-chapter-status">로컬 한국어 본문 없음 · KJV 표시</span>'
+        : '';
+      html += `<h4 class="bible-chapter-title">${escapeHtml(bookNameKOR)} ${chNum}장 ${koreanStatus}</h4>`;
       
       if (versesToShow.length > 0) {
         versesToShow.forEach(v => {
@@ -3097,11 +3369,12 @@ async function openBibleReader(title, passageData) {
           const kjvLine = kjvText
             ? `<span class="bible-verse-kjv">${escapeHtml(kjvText)}</span>`
             : '';
+          const koreanLine = v.text ? `<span class="bible-verse-text">${escapeHtml(v.text)}</span>` : '';
           html += `
             <button class="bible-verse-row" data-book="${escapeHtml(bookNameKOR)}" data-chapter="${chNum}" data-verse="${v.verse}" data-ref-key="${escapeHtml(refKey)}" data-verse-text="${escapeHtml(v.text)}" data-kjv-text="${escapeHtml(kjvText)}">
               <span class="bible-verse-num">${v.verse}</span>
               <span class="bible-verse-lines">
-                <span class="bible-verse-text">${escapeHtml(v.text)}</span>
+                ${koreanLine}
                 ${kjvLine}
               </span>
             </button>
@@ -3121,6 +3394,7 @@ async function openBibleReader(title, passageData) {
     });
     
   } catch (err) {
+    if (requestId !== bibleReaderRequestId) return;
     console.error("Error loading scripture: ", err);
     loading.classList.add('hidden');
     errorContainer.textContent = "본문을 불러오는 데 실패했습니다. 네트워크 연결을 확인하거나 나중에 다시 시도해주세요.";
@@ -3152,8 +3426,12 @@ function setupModalEventActions() {
   const colorDots = document.querySelectorAll('.color-dot');
   colorDots.forEach(dot => {
     dot.addEventListener('click', () => {
-      colorDots.forEach(d => d.classList.remove('active'));
+      colorDots.forEach(d => {
+        d.classList.remove('active');
+        d.setAttribute('aria-pressed', 'false');
+      });
       dot.classList.add('active');
+      dot.setAttribute('aria-pressed', 'true');
     });
   });
 
@@ -3181,6 +3459,7 @@ function openEventModal(dateStr) {
   if (!modal) return;
   
   modal.classList.remove('hidden');
+  focusAccessibleModal(modal);
   
   // 시작일, 종료일 기본값으로 선택된 날짜 지정
   const startDateInput = document.getElementById('input-modal-start-date');
@@ -3206,7 +3485,7 @@ function openEventModal(dateStr) {
 function closeEventModal() {
   const modal = document.getElementById('event-manager-modal');
   if (modal) {
-    modal.classList.add('hidden');
+    closeAccessibleModal(modal);
   }
 }
 
@@ -3241,7 +3520,7 @@ function renderEventModalList(dateStr) {
     
     item.innerHTML = `
       <span><strong>${escapeHtml(evt.title)}</strong>${dateRangeInfo}</span>
-      <button class="btn-delete-event" title="삭제">&times;</button>
+      <button class="btn-delete-event" title="삭제" aria-label="${escapeHtml(evt.title)} 일정 삭제">&times;</button>
     `;
     
     item.querySelector('.btn-delete-event').addEventListener('click', (e) => {
@@ -3343,4 +3622,15 @@ function renderSelectedDateEvents() {
     `;
     listEl.appendChild(div);
   });
+}
+
+const startupState = loadAppState();
+let shouldRestoreBibleReader = false;
+try {
+  shouldRestoreBibleReader = sessionStorage.getItem('returnToBibleReader') === '1';
+} catch (error) {
+  console.warn('Session restore state is unavailable.', error);
+}
+if (startupState.hasEntered || shouldRestoreBibleReader) {
+  enterApplication({ resetActiveTab: false });
 }

@@ -4,7 +4,7 @@
 
 ## 실행
 
-`index.html`을 브라우저에서 열어 로컬로 사용하거나 GitHub Pages에서 정적 사이트로 배포할 수 있습니다.
+`index.html`을 브라우저에서 직접 열어 사용할 수 있습니다. 2025~2029년 달력과 개역한글 본문은 앱에 포함되어 있으므로 첫 실행도 별도 서버 없이 가능합니다. GitHub Pages 정적 사이트로도 배포할 수 있습니다.
 
 ## 주요 기능
 
@@ -16,4 +16,13 @@
 
 ## 데이터
 
-원어와 사전 데이터의 상세 출처 및 라이선스 정보는 `tools/sources`와 생성 스크립트에 보존되어 있습니다.
+- 개역한글: GetBible Korean Revised Version 정적 데이터
+- KJV 1769 및 신약 원어: KJV1769x/Translator's Textus Receptus 계열 데이터
+- 구약 원어: OpenHebrewBible BHSA 8-layer 및 공식 KJV 대응표
+- 달력: Hebcal Jewish Calendar API 정적 스냅샷
+
+상세 출처, 라이선스, 재생성 방법은 `tools/sources`와 `tools/build-*.js`에 보존되어 있습니다.
+
+## 검증
+
+`npm test`는 일정 경계와 전체 통독 배분, JavaScript 문법, 66권 원어 절 커버리지, 사전 의미 무결성, KJV Strong 위치를 검사합니다. 같은 검사는 GitHub Pages 배포 전에 자동 실행됩니다.

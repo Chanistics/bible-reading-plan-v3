@@ -8,6 +8,12 @@ const HEBCAL_API_BASE = 'https://www.hebcal.com';
  * @param {string} year 그레고리력 연도 (예: '2026' 또는 'now')
  */
 async function fetchHebcalYearData(year = 'now') {
+  const bundledYears = window.BUNDLED_HEBCAL_DATA && window.BUNDLED_HEBCAL_DATA.years;
+  const bundledItems = bundledYears && bundledYears[String(year)];
+  if (Array.isArray(bundledItems) && bundledItems.length) {
+    return bundledItems;
+  }
+
   // s=on: 파라샤(leyning 포함), maj=on: 주요 절기, min=on: 소절기
   const url = `${HEBCAL_API_BASE}/hebcal?v=1&cfg=json&year=${year}&s=on&maj=on&min=on&mod=on`;
   
@@ -18,7 +24,7 @@ async function fetchHebcalYearData(year = 'now') {
     return data.items;
   } catch (err) {
     console.error('Hebcal API Fetch Error:', err);
-    return [];
+    throw err;
   }
 }
 
@@ -30,6 +36,7 @@ async function convertToHebrewDate(date) {
   const url = `${HEBCAL_API_BASE}/converter?cfg=json&date=${date}&g2h=1&strict=1`;
   try {
     const res = await fetch(url);
+    if (!res.ok) throw new Error(`Hebcal converter returned status ${res.status}`);
     const data = await res.json();
     return data;
   } catch (err) {

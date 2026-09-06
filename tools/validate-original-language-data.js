@@ -91,9 +91,45 @@ function validateKjvOffsets(index) {
 
 function validateAlignment(originalIndex, kjvIndex) {
   const stats = {
-    hebrew: { verses: 0, missingKjvVerses: 0, words: 0, structuralOnlyWords: 0, occurrenceMatched: 0, nonEmptyPhrase: 0, storedCompared: 0, storedMismatch: 0, unmatchedStrongCounts: {} },
-    greek: { verses: 0, missingKjvVerses: 0, words: 0, structuralOnlyWords: 0, occurrenceMatched: 0, nonEmptyPhrase: 0, storedCompared: 0, storedMismatch: 0, unmatchedStrongCounts: {} }
+    hebrew: createAlignmentStats(),
+    greek: createAlignmentStats()
   };
+  const knownMissing = new Set(Object.keys(originalIndex.knownMissingVerses || {}));
+
+  function createAlignmentStats() {
+    return {
+      verses: 0,
+      missingKjvVerses: 0,
+      missingOriginalVerses: [],
+      words: 0,
+      structuralOnlyWords: 0,
+      occurrenceMatched: 0,
+      nonEmptyPhrase: 0,
+      explicitAlignmentRows: 0,
+      explicitMappedWords: 0,
+      explicitPhraseInVerse: 0,
+      explicitPhraseOutsideVerse: [],
+      unmatchedStrongCounts: {}
+    };
+  }
+
+  function normalizePhrase(value) {
+    return String(value || '')
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'")
+      .replace(/[.,;:!?()]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  function phraseAppearsInVerse(value, verseText) {
+    const text = normalizePhrase(verseText);
+    return String(value || '').split(' / ')
+      .map(normalizePhrase)
+      .filter(Boolean)
+      .every(phrase => text.includes(phrase));
+  }
 
   Object.entries(originalIndex.books || {}).forEach(([bookName, originalMeta]) => {
     const kjvMeta = kjvIndex.books && kjvIndex.books[bookName];
@@ -102,6 +138,12 @@ function validateAlignment(originalIndex, kjvIndex) {
     const originalBook = originalWindow.ORIGINAL_LANGUAGE_BOOKS[originalMeta.step];
     const kjvBook = loadWindowScript(path.join(KJV_DIR, kjvMeta.file)).KJV1769_STRONG_BOOKS[kjvMeta.osis];
     const languageStats = stats[originalMeta.language];
+
+    Object.keys(kjvBook.verses || {}).forEach(verseKey => {
+      if (originalBook.verses && originalBook.verses[verseKey]) return;
+      const ref = `${bookName} ${verseKey}`;
+      if (!knownMissing.has(ref)) languageStats.missingOriginalVerses.push(ref);
+    });
 
     Object.entries(originalBook.verses || {}).forEach(([verseKey, rows]) => {
       languageStats.verses += 1;
@@ -114,9 +156,22 @@ function validateAlignment(originalIndex, kjvIndex) {
       const originalCounts = {};
       (rows || []).forEach(row => {
         const rawStrong = Array.isArray(row) ? row[3] : row.strong;
+        const hasExplicitAlignment = Array.isArray(row)
+          ? row.length >= 9
+          : Object.prototype.hasOwnProperty.call(row, 'kjvText');
+        const explicitPhrase = Array.isArray(row) ? row[8] : row.kjvText;
         const strong = normalizeStrong(rawStrong);
         if (!strong) return;
         languageStats.words += 1;
+        if (hasExplicitAlignment) languageStats.explicitAlignmentRows += 1;
+        if (String(explicitPhrase || '').trim()) {
+          languageStats.explicitMappedWords += 1;
+          if (phraseAppearsInVerse(explicitPhrase, kjvVerse.text)) {
+            languageStats.explicitPhraseInVerse += 1;
+          } else if (languageStats.explicitPhraseOutsideVerse.length < 12) {
+            languageStats.explicitPhraseOutsideVerse.push({ book: bookName, verse: verseKey, strong, phrase: explicitPhrase });
+          }
+        }
         if (hasOnlyStructuralHebrewStrongs(rawStrong)) languageStats.structuralOnlyWords += 1;
         originalCounts[strong] = (originalCounts[strong] || 0) + 1;
         const occurrence = Number(!Array.isArray(row) && row.strongOccurrence) || originalCounts[strong];
@@ -133,10 +188,6 @@ function validateAlignment(originalIndex, kjvIndex) {
         languageStats.occurrenceMatched += 1;
         if (String(match[1] || '').trim()) languageStats.nonEmptyPhrase += 1;
 
-        if (!Array.isArray(row) && Object.prototype.hasOwnProperty.call(row, 'kjvText')) {
-          languageStats.storedCompared += 1;
-          if (String(row.kjvText || '').trim() !== String(match[1] || '').trim()) languageStats.storedMismatch += 1;
-        }
       });
     });
   });
@@ -146,6 +197,8 @@ function validateAlignment(originalIndex, kjvIndex) {
     item.occurrenceMatchRate = item.words ? Number((item.occurrenceMatched * 100 / item.words).toFixed(2)) : 0;
     item.nonEmptyPhraseRate = item.words ? Number((item.nonEmptyPhrase * 100 / item.words).toFixed(2)) : 0;
     item.lexicalOccurrenceMatchRate = lexicalWords ? Number((item.occurrenceMatched * 100 / lexicalWords).toFixed(2)) : 0;
+    item.explicitAlignmentFieldRate = item.words ? Number((item.explicitAlignmentRows * 100 / item.words).toFixed(2)) : 0;
+    item.explicitMappingRate = item.words ? Number((item.explicitMappedWords * 100 / item.words).toFixed(2)) : 0;
     item.topUnmatchedStrongs = Object.entries(item.unmatchedStrongCounts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 12)
@@ -173,5 +226,14 @@ const hasIntegrityFailure = report.lexicons.hebrew.invalidCount > 0 ||
   report.lexicons.greek.invalidCount > 0 ||
   report.lexicons.greek.emptyMeanings > 0 ||
   report.kjvOffsets.invalidOffsets > 0 ||
-  report.alignment.greek.storedMismatch > 0;
+  report.alignment.hebrew.verses !== 23144 ||
+  report.alignment.greek.verses !== 7957 ||
+  report.alignment.hebrew.missingOriginalVerses.length > 0 ||
+  report.alignment.greek.missingOriginalVerses.length > 0 ||
+  report.alignment.hebrew.explicitAlignmentFieldRate !== 100 ||
+  report.alignment.greek.explicitAlignmentFieldRate !== 100 ||
+  report.alignment.hebrew.explicitMappingRate < 65 ||
+  report.alignment.greek.explicitMappingRate < 80 ||
+  report.alignment.hebrew.explicitPhraseOutsideVerse.length > 0 ||
+  report.alignment.greek.explicitPhraseOutsideVerse.length > 0;
 if (hasIntegrityFailure) process.exitCode = 1;

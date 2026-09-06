@@ -1,75 +1,79 @@
-// test-plan.js
-// Node.js script to simulate generator and test the results
-
+const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
-// Mock window object
-global.window = {};
+const context = {
+  window: {},
+  console,
+  fetch: async () => { throw new Error('Network access is disabled in this test'); },
+  Date,
+  setTimeout,
+  clearTimeout
+};
+vm.createContext(context);
 
-// Load bible-data.js
-const bibleDataCode = fs.readFileSync(path.join(__dirname, 'bible-data.js'), 'utf8');
-eval(bibleDataCode);
-
-// Load parasha-data.js
-const parashaDataCode = fs.readFileSync(path.join(__dirname, 'parasha-data.js'), 'utf8');
-eval(parashaDataCode);
-
-// Load generator.js
-const generatorCode = fs.readFileSync(path.join(__dirname, 'generator.js'), 'utf8');
-eval(generatorCode);
-
-async function runTest() {
-  const hYear = "5786";
-  const gYear = Number(hYear) - 3761; // 2025
-  
-  console.log(`Fetching hebcal data for ${gYear} and ${gYear + 1}...`);
-  
-  const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-  
-  async function fetchHebcalYearData(year) {
-    const url = `https://www.hebcal.com/hebcal?v=1&cfg=json&year=${year}&s=on&maj=on&min=on&mod=on`;
-    const res = await fetch(url);
-    const data = await res.json();
-    return data.items;
-  }
-  
-  const items1 = await fetchHebcalYearData(gYear.toString());
-  const items2 = await fetchHebcalYearData((gYear + 1).toString());
-  const hebcalItems = [...items1, ...items2];
-  
-  // Find Bereshit Sunday
-  const bereshitItem = hebcalItems.find(item => item.category === 'parashat' && item.title === 'Parashat Bereshit');
-  let startDateStr = "2025-10-12";
-  if (bereshitItem) {
-    const satParts = bereshitItem.date.split('-');
-    const satDate = new Date(Date.UTC(parseInt(satParts[0]), parseInt(satParts[1])-1, parseInt(satParts[2])));
-    const sunDate = new Date(satDate);
-    sunDate.setUTCDate(satDate.getUTCDate() - 6);
-    startDateStr = sunDate.toISOString().split('T')[0];
-  }
-  
-  console.log(`Start date: ${startDateStr}`);
-  
-  const plan = window.Generator.generateHebrewYearPlan(hebcalItems, startDateStr);
-  const dates = Object.keys(plan).sort();
-  
-  // Group by parasha
-  const groups = {};
-  dates.forEach(dateStr => {
-    const data = plan[dateStr];
-    const rawPName = data.parasha || "Special Week";
-    const pName = rawPName.replace(/^Parashat\s+|^Parashas\s+/i, '');
-    if (!groups[pName]) {
-      groups[pName] = [];
-    }
-    groups[pName].push(dateStr);
-  });
-  
-  console.log("\n--- Parasha Days Counts ---");
-  Object.keys(groups).forEach(pName => {
-    console.log(`${pName}: ${groups[pName].length} days (${groups[pName][0]} to ${groups[pName][groups[pName].length - 1]})`);
-  });
+function load(filename) {
+  const file = path.join(__dirname, filename);
+  vm.runInContext(fs.readFileSync(file, 'utf8'), context, { filename: file });
 }
 
-runTest().catch(err => console.error(err));
+function sundayBefore(dateStr) {
+  const date = new Date(`${dateStr}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 6);
+  return date.toISOString().split('T')[0];
+}
+
+function dayDifference(start, end) {
+  return Math.round((new Date(`${end}T00:00:00Z`) - new Date(`${start}T00:00:00Z`)) / 86400000);
+}
+
+async function main() {
+  load('bible-data.js');
+  load('parasha-data.js');
+  load('calendar-data.js');
+  load('hebcal.js');
+  load('generator.js');
+
+  const years = context.window.BUNDLED_HEBCAL_DATA.years;
+  assert.deepStrictEqual(Object.keys(years), ['2025', '2026', '2027', '2028', '2029']);
+  assert.strictEqual(
+    years['2026'].find(item => item.title === 'Rosh Hashana 5787').date,
+    '2026-09-12',
+    'Rosh Hashana 5787 must begin in September'
+  );
+
+  const items2026 = await context.window.HebcalAPI.fetchHebcalYearData('2026');
+  assert.strictEqual(items2026, years['2026'], 'bundled calendar must work without network access');
+
+  const bereshit2026 = years['2026'].find(item => item.title === 'Parashat Bereshit');
+  const bereshit2027 = years['2027'].find(item => item.title === 'Parashat Bereshit');
+  const start = sundayBefore(bereshit2026.date);
+  const nextStart = sundayBefore(bereshit2027.date);
+  assert.strictEqual(start, '2026-10-04');
+
+  const plan = context.window.Generator.generateHebrewYearPlan(
+    [...years['2026'], ...years['2027']],
+    start,
+    dayDifference(start, nextStart)
+  );
+  const dates = Object.keys(plan).sort();
+  assert.strictEqual(dates.length, 385);
+  assert.strictEqual(dates[0], '2026-10-04');
+  assert.strictEqual(plan['2026-10-04'].parasha, 'Bereshit');
+  assert.strictEqual(plan['2026-10-04'].torah, bereshit2026.leyning['1']);
+  assert.strictEqual(plan['2026-10-10'].torah, bereshit2026.leyning['7']);
+  assert(!dates.some(date => plan[date].parasha === 'Shalom'), 'synthetic Shalom week must not exist');
+
+  const expectedOt = context.window.BIBLE_DATA.flattenBooks(context.window.BIBLE_DATA.OT_OTHER_BOOKS);
+  const expectedNt = context.window.BIBLE_DATA.flattenBooks(context.window.BIBLE_DATA.NT_BOOKS);
+  assert.deepStrictEqual(Array.from(dates.flatMap(date => plan[date].ot)), Array.from(expectedOt));
+  assert.deepStrictEqual(Array.from(dates.flatMap(date => plan[date].nt)), Array.from(expectedNt));
+
+  console.log('Plan checks passed: offline calendar, 5787 dates, Torah aliyot, and full OT/NT distribution.');
+}
+
+main().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});

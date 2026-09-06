@@ -1,0 +1,11 @@
+{
+  "name": "p274-bible-reading-plan-v3",
+  "version": "3.0.0",
+  "private": true,
+  "scripts": {
+    "check:syntax": "node --check app.js && node --check generator.js && node --check hebcal.js && node --check sw.js",
+    "test:plan": "node test-plan.js",
+    "test:data": "node tools/validate-original-language-data.js",
+    "test": "npm run check:syntax && npm run test:plan && npm run test:data"
+  }
+}

@@ -2,16 +2,17 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>P274 v3</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P274 Bible Reading Plan</title>
   
   <meta name="theme-color" content="#0f0f0d">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="P274 v3">
+  <meta name="apple-mobile-web-app-title" content="P274">
   
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@700;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=47">
+  <link rel="stylesheet" href="style.css?v=48">
+  <link rel="icon" href="icon-192.png" type="image/png">
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
@@ -41,7 +42,7 @@
         <!-- Left Side: Title & Subtitle -->
         <div class="header-left">
           <div class="header-badge">연간 ㆍ 토라 포션</div>
-          <h1 class="header-family-title" id="family-title-text">P274 Bible Reading Plan</h1>
+          <h1 class="header-family-title" id="family-title-text">P274</h1>
           <div class="header-description" id="header-hebcal-banner">
             오늘의 유대력: 로딩 중...
           </div>
@@ -79,13 +80,13 @@
     </div>
 
     <!-- Tab Bar -->
-    <nav class="custom-tabs">
-      <div class="tabs-inner">
-        <button class="tab-item active" data-tab="dashboard">대시보드</button>
-        <button class="tab-item" data-tab="reading">오늘의 통독</button>
-        <button class="tab-item" data-tab="weekly">주간 보기</button>
-        <button class="tab-item" data-tab="annual">연간 보기</button>
-        <button class="tab-item" data-tab="settings">설정</button>
+    <nav class="custom-tabs" aria-label="주요 화면">
+      <div class="tabs-inner" role="tablist">
+        <button class="tab-item active" data-tab="dashboard" role="tab" aria-selected="true" aria-controls="tab-content-dashboard">대시보드</button>
+        <button class="tab-item" data-tab="reading" role="tab" aria-selected="false" aria-controls="tab-content-reading">오늘의 통독</button>
+        <button class="tab-item" data-tab="weekly" role="tab" aria-selected="false" aria-controls="tab-content-weekly">주간 보기</button>
+        <button class="tab-item" data-tab="annual" role="tab" aria-selected="false" aria-controls="tab-content-annual">연간 보기</button>
+        <button class="tab-item" data-tab="settings" role="tab" aria-selected="false" aria-controls="tab-content-settings">설정</button>
       </div>
     </nav>
 
@@ -98,9 +99,9 @@
           <!-- Calendar Card -->
           <div class="layout-left-card">
             <div class="calendar-header">
-              <button id="btn-cal-prev" class="btn-secondary btn-cal-arrow">◀</button>
+              <button id="btn-cal-prev" class="btn-secondary btn-cal-arrow" aria-label="이전 달">◀</button>
               <h3 id="calendar-month-title" class="calendar-month-title">...</h3>
-              <button id="btn-cal-next" class="btn-secondary btn-cal-arrow">▶</button>
+              <button id="btn-cal-next" class="btn-secondary btn-cal-arrow" aria-label="다음 달">▶</button>
             </div>
             <div class="calendar-grid-header">
               <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div><div>토라포션</div>
@@ -144,7 +145,7 @@
                   <h3 class="parasha-title" id="parasha-title-text">...</h3>
                   <p class="parasha-meaning" id="parasha-meaning-text-dashboard">...</p>
                 </div>
-                <button id="btn-toggle-meaning-new" class="btn-icon">▲</button>
+                <button id="btn-toggle-meaning-new" class="btn-icon" aria-label="파라샤 히브리어 접기" aria-expanded="true">▲</button>
               </div>
               <div id="parasha-meaning-box-new" class="parasha-meaning-detail-box">
                 <strong style="color: var(--gold);">히브리어: </strong>
@@ -191,8 +192,8 @@
         <div class="layout-left-card">
           <h4 class="section-subtitle">⚙️ 트래커 설정</h4>
           <div style="margin-bottom: 1.5rem;">
-            <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">성경읽기표 이름 설정</label>
-            <input type="text" id="input-family-name" style="width: 100%; padding: 0.75rem; background: #0b0e14; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 1rem;" placeholder="P274 Bible Reading Plan">
+            <label for="input-family-name" style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">성경읽기표 이름 설정</label>
+            <input type="text" id="input-family-name" class="form-control" placeholder="P274">
             <button id="btn-save-family-name" class="btn-primary" style="margin-top: 0.75rem;">이름 저장</button>
           </div>
           
@@ -200,7 +201,8 @@
             <h5 style="color: var(--text-main); margin-bottom: 0.5rem;">통독 기준일 설정 (테스트용)</h5>
             <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 1rem;">특정 날짜에 절기와 통독 본문이 대시보드에 어떻게 반영되는지 검증하기 위해 오늘 날짜를 임의로 변경할 수 있습니다.</p>
             <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-              <input type="date" id="input-override-date" style="padding: 0.75rem; background: #0b0e14; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 1rem; cursor: pointer;">
+              <label class="sr-only" for="input-override-date">통독 기준일</label>
+              <input type="date" id="input-override-date" class="form-control form-control-date">
               <button id="btn-save-override-date" class="btn-primary">날짜 지정</button>
               <button id="btn-reset-override-date" class="btn-secondary" style="border-color: rgba(255,255,255,0.15);">오늘로 리셋</button>
             </div>
@@ -229,11 +231,11 @@
     </div>
 
     <!-- Bible Reader Modal -->
-    <div id="bible-reader-modal" class="modal-overlay hidden">
+    <div id="bible-reader-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="bible-reader-title">
       <div class="modal-content bible-reader-modal-content">
         <div class="modal-header">
           <h3 id="bible-reader-title" class="modal-title">본문 읽기 <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted); margin-left: 0.5rem; vertical-align: middle;">(개역한글)</span></h3>
-          <button id="btn-close-reader" class="btn-close">&times;</button>
+          <button id="btn-close-reader" class="btn-close" aria-label="본문 읽기 닫기">&times;</button>
         </div>
         <div id="bible-reader-body" class="modal-body bible-reader-body">
           <div class="bible-reader-layout">
@@ -258,11 +260,11 @@
     </div>
 
     <!-- Parasha Detail Modal -->
-    <div id="parasha-detail-modal" class="modal-overlay hidden">
+    <div id="parasha-detail-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="parasha-modal-title">
       <div class="modal-content parasha-modal-content">
         <div class="modal-header">
           <h3 id="parasha-modal-title" class="modal-title">파라샤 보기</h3>
-          <button id="btn-close-parasha-modal" class="btn-close">&times;</button>
+          <button id="btn-close-parasha-modal" class="btn-close" aria-label="파라샤 보기 닫기">&times;</button>
         </div>
         <div id="parasha-modal-body" class="modal-body parasha-modal-body">
           <!-- Parasha details rendered here -->
@@ -271,11 +273,11 @@
     </div>
 
     <!-- Event Manager Modal (Popup) -->
-    <div id="event-manager-modal" class="modal-overlay hidden">
+    <div id="event-manager-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="event-modal-title">
       <div class="modal-content" style="max-width: 450px;">
         <div class="modal-header">
           <h3 id="event-modal-title" class="modal-title">일정 관리</h3>
-          <button id="btn-close-event-modal" class="btn-close">&times;</button>
+          <button id="btn-close-event-modal" class="btn-close" aria-label="일정 관리 닫기">&times;</button>
         </div>
         <div class="modal-body">
           <div id="event-modal-list" style="margin-bottom: 1.5rem; max-height: 200px; overflow-y: auto;">
@@ -285,36 +287,36 @@
           <!-- Add Event Form -->
           <div style="display: flex; flex-direction: column; gap: 0.75rem; border-top: 1px solid var(--border); padding-top: 1rem;">
             <div>
-              <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-muted);">일정 이름</label>
-              <input type="text" id="input-modal-event-text" placeholder="새 일정 입력..." style="width: 100%; padding: 0.6rem 0.75rem; background: #0b0e14; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 0.95rem;">
+              <label for="input-modal-event-text" style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-muted);">일정 이름</label>
+              <input type="text" id="input-modal-event-text" class="form-control" placeholder="새 일정 입력...">
             </div>
             
             <div style="display: flex; gap: 0.5rem;">
               <div style="flex: 1;">
-                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-muted);">시작일</label>
-                <input type="date" id="input-modal-start-date" style="width: 100%; padding: 0.6rem 0.75rem; background: #0b0e14; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 0.95rem;">
+                <label for="input-modal-start-date" style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-muted);">시작일</label>
+                <input type="date" id="input-modal-start-date" class="form-control">
               </div>
               <div style="flex: 1;">
-                <label style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-muted);">종료일</label>
-                <input type="date" id="input-modal-end-date" style="width: 100%; padding: 0.6rem 0.75rem; background: #0b0e14; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 0.95rem;">
+                <label for="input-modal-end-date" style="display: block; margin-bottom: 0.25rem; font-size: 0.85rem; color: var(--text-muted);">종료일</label>
+                <input type="date" id="input-modal-end-date" class="form-control">
               </div>
             </div>
             
             <div>
               <label style="display: block; margin-bottom: 0.35rem; font-size: 0.85rem; color: var(--text-muted);">색상 선택</label>
               <div class="event-color-selector" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.5rem; justify-items: center;">
-                <button class="color-dot active" data-color="gold" style="background-color: #f0b429;" title="Gold"></button>
-                <button class="color-dot" data-color="blue" style="background-color: #58a6ff;" title="Blue"></button>
-                <button class="color-dot" data-color="green" style="background-color: #3fb950;" title="Green"></button>
-                <button class="color-dot" data-color="purple" style="background-color: #bc8cff;" title="Purple"></button>
-                <button class="color-dot" data-color="red" style="background-color: #ff7b72;" title="Red"></button>
-                <button class="color-dot" data-color="orange" style="background-color: #f97316;" title="Orange"></button>
-                <button class="color-dot" data-color="cyan" style="background-color: #22d3ee;" title="Cyan"></button>
-                <button class="color-dot" data-color="pink" style="background-color: #f472b6;" title="Pink"></button>
-                <button class="color-dot" data-color="teal" style="background-color: #14b8a6;" title="Teal"></button>
-                <button class="color-dot" data-color="lavender" style="background-color: #a78bfa;" title="Lavender"></button>
-                <button class="color-dot" data-color="emerald" style="background-color: #34d399;" title="Emerald"></button>
-                <button class="color-dot" data-color="amber" style="background-color: #fbbf24;" title="Amber"></button>
+                <button class="color-dot active" data-color="gold" style="background-color: #f0b429;" title="골드" aria-label="골드 색상" aria-pressed="true"></button>
+                <button class="color-dot" data-color="blue" style="background-color: #58a6ff;" title="파랑" aria-label="파랑 색상" aria-pressed="false"></button>
+                <button class="color-dot" data-color="green" style="background-color: #3fb950;" title="초록" aria-label="초록 색상" aria-pressed="false"></button>
+                <button class="color-dot" data-color="purple" style="background-color: #bc8cff;" title="보라" aria-label="보라 색상" aria-pressed="false"></button>
+                <button class="color-dot" data-color="red" style="background-color: #ff7b72;" title="빨강" aria-label="빨강 색상" aria-pressed="false"></button>
+                <button class="color-dot" data-color="orange" style="background-color: #f97316;" title="주황" aria-label="주황 색상" aria-pressed="false"></button>
+                <button class="color-dot" data-color="cyan" style="background-color: #22d3ee;" title="청록" aria-label="청록 색상" aria-pressed="false"></button>
+                <button class="color-dot" data-color="pink" style="background-color: #f472b6;" title="분홍" aria-label="분홍 색상" aria-pressed="false"></button>
+                <button class="color-dot" data-color="teal" style="background-color: #14b8a6;" title="틸" aria-label="틸 색상" aria-pressed="false"></button>
+                <button class="color-dot" data-color="lavender" style="background-color: #a78bfa;" title="라벤더" aria-label="라벤더 색상" aria-pressed="false"></button>
+                <button class="color-dot" data-color="emerald" style="background-color: #34d399;" title="에메랄드" aria-label="에메랄드 색상" aria-pressed="false"></button>
+                <button class="color-dot" data-color="amber" style="background-color: #fbbf24;" title="앰버" aria-label="앰버 색상" aria-pressed="false"></button>
               </div>
             </div>
             
@@ -325,7 +327,7 @@
     </div>
 
     <!-- Generating state overlay -->
-    <div id="generating-overlay" class="generating-overlay hidden">
+    <div id="generating-overlay" class="generating-overlay hidden" role="status" aria-live="polite">
       <div class="spinner"></div>
       <div class="gen-text">연간 통독 플랜을 생성하고 있습니다...<br><small>Hebcal API와 동기화 중</small></div>
     </div>
@@ -334,10 +336,11 @@
   <script src="bible-data.js"></script>
   <script src="parasha-data.js"></script>
   <script src="parasha-details.js"></script>
+  <script src="calendar-data.js"></script>
   <script src="hebcal.js"></script>
   <script src="generator.js"></script>
   <script src="original-language-data.js?v=1"></script>
-  <script src="app.js?v=50"></script>
+  <script src="app.js?v=51"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

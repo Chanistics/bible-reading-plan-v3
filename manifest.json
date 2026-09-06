@@ -1,6 +1,6 @@
 {
-  "name": "P274 v3",
-  "short_name": "P274 v3",
+  "name": "P274 Bible Reading Plan",
+  "short_name": "P274",
   "description": "유대력 기준 매일 성경 통독 트래커",
   "start_url": "./index.html",
   "display": "standalone",

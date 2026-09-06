@@ -55,13 +55,6 @@ function generateHebrewYearPlan(hebcalItems, startDateStr, totalDays = 365) {
   datesList.forEach((dateStr) => {
     const dayData = plan[dateStr];
     
-    // 5786 -> 5787 베레시트 전환기 샬롬 주간 대응 (2026-10-04 ~ 2026-10-09)
-    if (dateStr >= "2026-10-04" && dateStr <= "2026-10-09") {
-      dayData.parasha = "샬롬 (Shalom)";
-      dayData.torah = null;
-      return;
-    }
-
     // 이 날짜가 속한 주의 토요일 날짜 찾기
     const dParts = dateStr.split('-');
     const dYear = parseInt(dParts[0], 10);

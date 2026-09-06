@@ -25,6 +25,10 @@ let bundledCalendarPlanByDate = null;
 const memoryStorage = new Map();
 let appInitializationPromise = null;
 let appUiInitialized = false;
+const annualViewFilters = {
+  status: 'all',
+  book: 'all'
+};
 
 function safeStorageGet(key) {
   try {
@@ -694,6 +698,8 @@ async function initApp() {
 
   if (!appUiInitialized) {
     setupTabs();
+    setupScheduleViewActions();
+    setupProgressShareActions();
     setupModalEventActions();
     setupParashaModalActions();
     setupModalAccessibility();
@@ -961,6 +967,144 @@ function setupTabs() {
   });
 }
 
+function shiftDateByDays(dateStr, days) {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().split('T')[0];
+}
+
+function moveWeeklyView(dayOffset) {
+  const planDates = getPlanDates();
+  if (!planDates.length) return;
+  const candidate = shiftDateByDays(activeDateStr, dayOffset);
+  activeDateStr = candidate < planDates[0]
+    ? planDates[0]
+    : candidate > planDates[planDates.length - 1]
+      ? planDates[planDates.length - 1]
+      : candidate;
+  renderDashboard();
+}
+
+function setupScheduleViewActions() {
+  document.getElementById('btn-week-prev').addEventListener('click', () => moveWeeklyView(-7));
+  document.getElementById('btn-week-next').addEventListener('click', () => moveWeeklyView(7));
+  document.getElementById('btn-week-today').addEventListener('click', () => {
+    const todayStr = getTodayStr();
+    if (currentPlan[todayStr]) {
+      activeDateStr = todayStr;
+      renderDashboard();
+    }
+  });
+
+  document.querySelectorAll('[data-annual-status]').forEach(button => {
+    button.addEventListener('click', () => {
+      annualViewFilters.status = button.dataset.annualStatus;
+      document.querySelectorAll('[data-annual-status]').forEach(filterButton => {
+        const active = filterButton === button;
+        filterButton.classList.toggle('active', active);
+        filterButton.setAttribute('aria-pressed', String(active));
+      });
+      renderAnnualView();
+    });
+  });
+
+  document.getElementById('annual-book-select').addEventListener('change', event => {
+    annualViewFilters.book = event.target.value;
+    renderAnnualView();
+  });
+}
+
+function getProgressShareContent() {
+  const todayStr = getTodayStr();
+  const stats = calculateStats();
+  const [year, month, day] = todayStr.split('-').map(Number);
+  const planDay = currentPlan[todayStr] ? getPlanDayNumber(todayStr) : getPlanDayNumber(activeDateStr);
+  const familyName = appState.familyName || DEFAULT_FAMILY_NAME;
+  const note = document.getElementById('progress-share-note').value.trim();
+  const lines = [
+    `${familyName} 성경 통독`,
+    `${year}년 ${month}월 ${day}일 · ${planDay}일차`,
+    `전체 진도 ${stats.percentage}% (${stats.completedDays}일 / ${stats.totalDays || getPlanTotalDays()}일)`
+  ];
+  if (note) lines.push(`묵상: ${note}`);
+  return {
+    title: `${familyName} 성경 통독 진도`,
+    text: lines.join('\n'),
+    url: location.protocol === 'file:'
+      ? 'https://chanistics.github.io/bible-reading-plan-v3/'
+      : `${location.origin}${location.pathname}`
+  };
+}
+
+function openProgressShareModal() {
+  const modal = document.getElementById('progress-share-modal');
+  const stats = calculateStats();
+  const todayStr = getTodayStr();
+  const planDay = currentPlan[todayStr] ? getPlanDayNumber(todayStr) : getPlanDayNumber(activeDateStr);
+  document.getElementById('progress-share-preview').innerHTML = `
+    <span class="progress-share-preview-label">${escapeHtml(appState.familyName || DEFAULT_FAMILY_NAME)}</span>
+    <strong>${stats.percentage}%</strong>
+    <span>${planDay}일차 · ${stats.completedDays} / ${stats.totalDays || getPlanTotalDays()}일 완료</span>`;
+  document.getElementById('progress-share-note').value = '';
+  document.getElementById('progress-share-status').textContent = '';
+  document.getElementById('btn-submit-share').textContent = navigator.share ? '공유 앱 선택' : '공유 문구 복사';
+  modal.classList.remove('hidden');
+  focusAccessibleModal(modal);
+}
+
+async function copyShareText(content) {
+  const fullText = `${content.text}\n${content.url}`;
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(fullText);
+    return;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = fullText;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) throw new Error('Copy command was rejected.');
+}
+
+async function shareProgress() {
+  const status = document.getElementById('progress-share-status');
+  const submit = document.getElementById('btn-submit-share');
+  const content = getProgressShareContent();
+  status.textContent = '';
+  submit.disabled = true;
+  try {
+    if (navigator.share) {
+      await navigator.share(content);
+      closeAccessibleModal(document.getElementById('progress-share-modal'));
+    } else {
+      await copyShareText(content);
+      status.textContent = '공유 문구가 복사되었습니다.';
+    }
+  } catch (error) {
+    if (error && error.name !== 'AbortError') {
+      status.textContent = '공유하지 못했습니다. 다시 시도해주세요.';
+      console.error('Progress sharing failed.', error);
+    }
+  } finally {
+    submit.disabled = false;
+  }
+}
+
+function setupProgressShareActions() {
+  const modal = document.getElementById('progress-share-modal');
+  document.getElementById('btn-share-progress').addEventListener('click', openProgressShareModal);
+  document.getElementById('btn-close-share-modal').addEventListener('click', () => closeAccessibleModal(modal));
+  document.getElementById('btn-submit-share').addEventListener('click', shareProgress);
+  modal.addEventListener('click', event => {
+    if (event.target === modal) closeAccessibleModal(modal);
+  });
+}
+
 const modalFocusOrigins = new WeakMap();
 
 function focusAccessibleModal(modal) {
@@ -1034,6 +1178,141 @@ function toggleDayCompletion(dateStr, markComplete) {
   renderDashboard();
 }
 
+function formatPlanDateRange(dateStrings) {
+  if (!dateStrings.length) return '';
+  const formatPart = (dateStr, includeYear) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return includeYear ? `${year}. ${month}. ${day}.` : `${month}. ${day}.`;
+  };
+  const first = dateStrings[0];
+  const last = dateStrings[dateStrings.length - 1];
+  const sameYear = first.slice(0, 4) === last.slice(0, 4);
+  return `${formatPart(first, true)} - ${formatPart(last, !sameYear)}`;
+}
+
+function getTorahBookName(dayData) {
+  if (!dayData || (!dayData.torah && !dayData.torahCompletion)) return '';
+  const translated = window.BIBLE_DATA.translateTorahReading(dayData.torah || dayData.torahCompletion);
+  const match = translated.match(/^(창세기|출애굽기|레위기|민수기|신명기)/);
+  return match ? match[1] : '';
+}
+
+function getWeekSummary(dateStr) {
+  const dates = getWeekDates(dateStr).filter(date => currentPlan[date]);
+  const rawParasha = dates.map(date => currentPlan[date].parasha).find(Boolean) || 'Special Week';
+  const parasha = rawParasha.replace(/^Parashat\s+|^Parashas\s+/i, '');
+  const holidays = [];
+  dates.forEach(date => {
+    (currentPlan[date].holidays || []).forEach(holiday => {
+      const name = getBiblicalHolidayName(holiday.name.replace(/^Holiday:\s*/i, ''));
+      if (name && !holidays.includes(name)) holidays.push(name);
+    });
+  });
+  const completedDays = dates.filter(date => {
+    return isDayCompleted(currentPlan[date], appState.progress[date] || {});
+  }).length;
+  const torahBook = dates.map(date => getTorahBookName(currentPlan[date])).find(Boolean) || '';
+
+  return {
+    dates,
+    parasha,
+    holidays,
+    completedDays,
+    totalDays: dates.length,
+    torahBook,
+    percentage: dates.length ? Math.round((completedDays / dates.length) * 100) : 0
+  };
+}
+
+function renderWeeklySchedule(todayStr, days) {
+  const summary = getWeekSummary(activeDateStr);
+  const totalWeeks = Math.max(...getPlanDates().map(getPlanWeekNumber));
+  const weekNum = getPlanWeekNumber(activeDateStr);
+  const meta = window.getParashaMeta(summary.parasha);
+  const title = summary.parasha === 'Special Week'
+    ? '절기 특별 주간'
+    : summary.parasha.includes('샬롬')
+      ? '샬롬 (Shalom)'
+      : `${summary.parasha} · ${meta.ko}`;
+
+  document.getElementById('weekly-week-label').textContent = `${weekNum}주차 / 총 ${totalWeeks}주`;
+  document.getElementById('weekly-parasha-title').textContent = title;
+  document.getElementById('weekly-date-range').textContent = formatPlanDateRange(summary.dates);
+  document.getElementById('weekly-progress-text').textContent = `${summary.completedDays} / ${summary.totalDays}일 완료`;
+  document.getElementById('weekly-progress-bar').style.width = `${summary.percentage}%`;
+
+  const holidayList = document.getElementById('weekly-holiday-list');
+  holidayList.replaceChildren();
+  if (summary.holidays.length) {
+    summary.holidays.forEach(name => {
+      const badge = document.createElement('span');
+      badge.className = 'weekly-holiday-badge';
+      badge.textContent = name;
+      holidayList.appendChild(badge);
+    });
+  } else {
+    const empty = document.createElement('span');
+    empty.className = 'weekly-no-holiday';
+    empty.textContent = '정규 토라포션 주간';
+    holidayList.appendChild(empty);
+  }
+
+  const planDates = getPlanDates();
+  document.getElementById('btn-week-prev').disabled = summary.dates[0] === planDates[0];
+  document.getElementById('btn-week-next').disabled = summary.dates[summary.dates.length - 1] === planDates[planDates.length - 1];
+  document.getElementById('btn-week-today').disabled = !currentPlan[todayStr];
+
+  const scheduleContainer = document.getElementById('weekly-schedule-container');
+  scheduleContainer.replaceChildren();
+
+  summary.dates.forEach(dateStr => {
+    const dayData = currentPlan[dateStr];
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    const dayName = days[date.getUTCDay()];
+    const dayNumber = getPlanDayNumber(dateStr);
+    const isToday = dateStr === todayStr;
+    const isActive = dateStr === activeDateStr;
+    const isCompleted = isDayCompleted(dayData, appState.progress[dateStr] || {});
+    const readings = [];
+
+    const addReading = (type, label, reading) => {
+      if (!reading) return;
+      readings.push(`<span class="sched-reading type-${type}"><span class="sched-reading-label">${label}</span><span class="sched-reading-text">${escapeHtml(abbreviateReading(reading))}</span></span>`);
+    };
+    if (dayData.torah) addReading('torah', '토라', window.BIBLE_DATA.translateTorahReading(dayData.torah));
+    if (dayData.torahCompletion) addReading('torah', '토라 완독', window.BIBLE_DATA.translateTorahReading(dayData.torahCompletion));
+    if (dayData.megillah) addReading('megillah', '메길롯', dayData.megillah);
+    if (dayData.ot && dayData.ot.length) addReading('ot', '구약', formatReadingRange(dayData.ot));
+    if (dayData.nt && dayData.nt.length) addReading('nt', '신약', formatReadingRange(dayData.nt));
+
+    const row = document.createElement('div');
+    row.className = `schedule-day-row${isActive ? ' active' : ''}${isToday ? ' today' : ''}${isCompleted ? ' completed' : ''}`;
+    row.innerHTML = `
+      <button class="sched-chk-box" type="button" aria-label="${month}월 ${day}일 통독 ${isCompleted ? '완료 취소' : '완료'}" aria-pressed="${isCompleted}"></button>
+      <button class="sched-info" type="button" aria-label="${month}월 ${day}일 일정 선택">
+        <span class="sched-date-block">
+          <span class="sched-weekday">${dayName}</span>
+          <span class="sched-calendar-date">${month}.${day}</span>
+          <span class="sched-day-count">${dayNumber}일차</span>
+        </span>
+        <span class="sched-day-content">
+          <span class="sched-day-title">${isToday ? '<span class="sched-day-badge">오늘</span>' : ''}${isActive && !isToday ? '<span class="sched-day-badge selected">선택</span>' : ''}</span>
+          <span class="sched-day-readings">${readings.join('')}</span>
+        </span>
+      </button>`;
+
+    row.querySelector('.sched-chk-box').addEventListener('click', () => {
+      toggleDayCompletion(dateStr, !isCompleted);
+    });
+    row.querySelector('.sched-info').addEventListener('click', () => {
+      activeDateStr = dateStr;
+      renderDashboard();
+    });
+    scheduleContainer.appendChild(row);
+  });
+}
+
 // 2. 대시보드 (오늘 읽기) 렌더링
 async function renderDashboard() {
   const todayStr = getTodayStr();
@@ -1067,6 +1346,11 @@ async function renderDashboard() {
   const stats = calculateStats();
   document.getElementById('stat-progress-val').textContent = `${stats.percentage}%`;
   document.getElementById('stat-completed-val').textContent = `${stats.completedDays} / ${stats.totalDays || getPlanTotalDays()}`;
+  const progressBar = document.getElementById('stat-progress-bar');
+  const progressTrack = document.getElementById('stat-progress-track');
+  progressBar.style.width = `${stats.percentage}%`;
+  progressTrack.setAttribute('aria-valuenow', String(stats.percentage));
+  progressTrack.setAttribute('aria-valuetext', `${stats.percentage}% 완료`);
 
   // 3. 유대력 및 절기 정보 헤더 영역 동적 로드
   const hebDateObj = getHebrewDateNatively(todayStr);
@@ -1270,72 +1554,8 @@ async function renderDashboard() {
     }
   }
 
-  // 7. 오른쪽 카드: 이번 주 (7일) 일정
-  const scheduleContainer = document.getElementById('weekly-schedule-container');
-  scheduleContainer.innerHTML = '';
-  const weekDates = getWeekDates(activeDateStr);
-
-  weekDates.forEach(dateStr => {
-    const dayData = currentPlan[dateStr];
-    if (!dayData) return;
-
-    const dParts = dateStr.split('-');
-    const d = new Date(Date.UTC(parseInt(dParts[0]), parseInt(dParts[1])-1, parseInt(dParts[2])));
-    const dayName = days[d.getUTCDay()];
-    const dOfYear = getPlanDayNumber(dateStr);
-
-    const isToday = dateStr === todayStr;
-    const isActive = dateStr === activeDateStr;
-    
-    const progressDay = appState.progress[dateStr] || {};
-    const isCompleted = isDayCompleted(dayData, progressDay);
-
-    const readings = [];
-    if (dayData.torah) {
-      readings.push(`<span class="sched-tag torah">${abbreviateReading(window.BIBLE_DATA.translateTorahReading(dayData.torah))}</span>`);
-    }
-    if (dayData.torahCompletion) {
-      readings.push(`<span class="sched-tag torah">${abbreviateReading(window.BIBLE_DATA.translateTorahReading(dayData.torahCompletion))}</span>`);
-    }
-    if (dayData.megillah) {
-      readings.push(`<span class="sched-tag megillah">${abbreviateReading(dayData.megillah)}</span>`);
-    }
-    if (dayData.ot && dayData.ot.length > 0) {
-      const title = formatReadingRange(dayData.ot);
-      readings.push(`<span class="sched-tag ot">${abbreviateReading(title)}</span>`);
-    }
-    if (dayData.nt && dayData.nt.length > 0) {
-      const title = formatReadingRange(dayData.nt);
-      readings.push(`<span class="sched-tag nt">${abbreviateReading(title)}</span>`);
-    }
-
-    const row = document.createElement('div');
-    row.className = `schedule-day-row ${isActive ? 'active' : ''} ${isCompleted ? 'completed' : ''}`;
-    row.innerHTML = `
-      <div class="sched-chk-box"></div>
-      <div class="sched-info">
-        <div class="sched-day-title">
-          <span>${dOfYear}일차 - ${d.getUTCMonth()+1}/${d.getUTCDate()}(${dayName})</span>
-          ${isToday ? '<span class="sched-day-badge">오늘</span>' : ''}
-        </div>
-        <div class="sched-day-readings">
-          ${readings.join(' ')}
-        </div>
-      </div>
-    `;
-
-    row.addEventListener('click', (e) => {
-      if (e.target.classList.contains('sched-chk-box')) {
-        e.stopPropagation();
-        toggleDayCompletion(dateStr, !isCompleted);
-      } else {
-        activeDateStr = dateStr;
-        renderDashboard();
-      }
-    });
-
-    scheduleContainer.appendChild(row);
-  });
+  // 7. 주간 보기
+  renderWeeklySchedule(todayStr, days);
 
   // 캘린더 및 다가오는 절기 업데이트
   renderCalendar();
@@ -1381,122 +1601,78 @@ document.getElementById('btn-enter').addEventListener('click', () => {
   enterApplication({ resetActiveTab: true });
 });
 
-// 3. 연간 뷰 렌더링 (주별 보기 탭) - 연간 주차(1~53주차)별 정렬
+// 3. 연간 뷰 렌더링: 펼침 없이 주차 요약과 필터에 집중한다.
 function renderAnnualView() {
   const container = document.getElementById('annual-container');
-  container.innerHTML = '';
-  
-  const dates = getPlanDates();
-  
-  // 주차별로 날짜 그룹핑 (1~53주차)
-  const groups = {}; // { weekNum: [dateStr, ...] }
-  dates.forEach(dateStr => {
+  container.replaceChildren();
+
+  const groups = {};
+  getPlanDates().forEach(dateStr => {
     const weekNum = getPlanWeekNumber(dateStr);
-    if (!groups[weekNum]) {
-      groups[weekNum] = [];
-    }
+    if (!groups[weekNum]) groups[weekNum] = [];
     groups[weekNum].push(dateStr);
   });
 
-  // 주차 오름차순 정렬
-  const sortedWeeks = Object.keys(groups).sort((a, b) => Number(a) - Number(b));
-  
-  const daysOfWeekKOR = ['일','월','화','수','목','금','토'];
-  let html = '';
-
-  sortedWeeks.forEach(weekNum => {
-    const groupDates = groups[weekNum].sort();
-    
-    // 이 주간의 파라샤 및 절기 정보 수집
-    let weekParasha = null;
-    const holidaysInWeek = [];
-
-    groupDates.forEach(dateStr => {
-      const data = currentPlan[dateStr];
-      if (data.parasha && !weekParasha) {
-        weekParasha = data.parasha;
-      }
-      if (data.holidays && data.holidays.length > 0) {
-        data.holidays.forEach(h => {
-          const rawName = h.name.replace(/^Holiday:\s*/i, '');
-          const normName = getBiblicalHolidayName(rawName);
-          if (normName && !holidaysInWeek.includes(normName)) {
-            holidaysInWeek.push(normName);
-          }
-        });
-      }
+  const weekSummaries = Object.keys(groups)
+    .sort((a, b) => Number(a) - Number(b))
+    .map(weekNum => {
+      const summary = getWeekSummary(groups[weekNum][0]);
+      return { ...summary, weekNum: Number(weekNum) };
     });
 
-    let displayTitle = '';
-    let meaningText = '';
-    
-    if (weekParasha) {
-      const meta = window.getParashaMeta(weekParasha);
-      displayTitle = weekParasha.includes("샬롬")
-        ? `${weekNum}주차: 샬롬 (Shalom)`
-        : `${weekNum}주차: ${weekParasha} (${meta.ko})`;
-      if (holidaysInWeek.length > 0) {
-        displayTitle += ` [절기: ${holidaysInWeek.join(', ')}]`;
-      }
-      meaningText = `<div class="annual-week-meaning">의미: ${meta.meaning}</div>`;
-    } else {
-      displayTitle = `${weekNum}주차: 절기 주간 / Special Week`;
-      if (holidaysInWeek.length > 0) {
-        displayTitle = `${weekNum}주차: 절기 주간 (${holidaysInWeek.join(', ')})`;
-      }
-      meaningText = `<div class="annual-week-meaning">의미: 유대력 절기 특별 주간</div>`;
-    }
-
-    html += `
-      <div class="annual-week-card">
-        <div class="annual-week-header" onclick="this.parentElement.classList.toggle('expanded')">
-          <div>
-            <div class="annual-week-title">${displayTitle}</div>
-            ${meaningText}
-          </div>
-          <div class="annual-week-icon">▼</div>
-        </div>
-        <div class="annual-week-body">
-    `;
-
-    groupDates.forEach(dateStr => {
-      const data = currentPlan[dateStr];
-      const dParts = dateStr.split('-');
-      const d = new Date(Date.UTC(parseInt(dParts[0]), parseInt(dParts[1])-1, parseInt(dParts[2])));
-      const dayName = daysOfWeekKOR[d.getUTCDay()];
-      const prog = appState.progress[dateStr] || {};
-      
-      html += `<div class="annual-day-row">
-                 <div class="annual-day-date">${dateStr} (${dayName})</div>
-                 <div class="annual-day-content">`;
-      
-      if (data.torah) {
-        const torahTitle = window.BIBLE_DATA.translateTorahReading(data.torah);
-        html += `<div class="rd-tag type-torah ${prog.torah?'done':''}">${torahTitle}</div>`;
-      }
-      if (data.torahCompletion) {
-        const torahTitle = window.BIBLE_DATA.translateTorahReading(data.torahCompletion);
-        html += `<div class="rd-tag type-torah ${prog.torahCompletion?'done':''}">토라 완독 · ${torahTitle}</div>`;
-      }
-      if (data.megillah) {
-        html += `<div class="rd-tag type-megillah ${prog.megillah?'done':''}">${data.megillah}</div>`;
-      }
-      if (data.ot && data.ot.length > 0) {
-        const title = formatReadingRange(data.ot, true);
-        html += `<div class="rd-tag type-ot ${prog.ot?'done':''}">${title}</div>`;
-      }
-      if (data.nt && data.nt.length > 0) {
-        const title = formatReadingRange(data.nt, true);
-        html += `<div class="rd-tag type-nt ${prog.nt?'done':''}">${title}</div>`;
-      }
-      
-      html += `</div></div>`;
-    });
-
-    html += `</div></div>`;
+  const visibleWeeks = weekSummaries.filter(summary => {
+    const matchesStatus = annualViewFilters.status === 'all'
+      || (annualViewFilters.status === 'incomplete' && summary.completedDays < summary.totalDays)
+      || (annualViewFilters.status === 'holiday' && summary.holidays.length > 0);
+    const matchesBook = annualViewFilters.book === 'all' || summary.torahBook === annualViewFilters.book;
+    return matchesStatus && matchesBook;
   });
-  
-  container.innerHTML = html;
+
+  document.getElementById('annual-filter-count').textContent = `${visibleWeeks.length} / ${weekSummaries.length}주`;
+  document.getElementById('annual-book-select').value = annualViewFilters.book;
+
+  if (!visibleWeeks.length) {
+    const empty = document.createElement('div');
+    empty.className = 'annual-empty-state';
+    empty.textContent = '선택한 조건에 맞는 주차가 없습니다.';
+    container.appendChild(empty);
+    return;
+  }
+
+  const currentWeek = getPlanWeekNumber(activeDateStr);
+  visibleWeeks.forEach(summary => {
+    const meta = window.getParashaMeta(summary.parasha);
+    const title = summary.parasha === 'Special Week'
+      ? '절기 특별 주간'
+      : summary.parasha.includes('샬롬')
+        ? '샬롬 (Shalom)'
+        : `${summary.parasha} · ${meta.ko}`;
+    const holidayBadges = summary.holidays
+      .map(name => `<span class="annual-holiday-badge">${escapeHtml(name)}</span>`)
+      .join('');
+
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = `annual-week-summary${summary.weekNum === currentWeek ? ' current' : ''}${summary.completedDays === summary.totalDays ? ' completed' : ''}`;
+    row.setAttribute('aria-label', `${summary.weekNum}주차 ${title}, 주간 보기로 이동`);
+    row.innerHTML = `
+      <span class="annual-week-number">${summary.weekNum}<small>주차</small></span>
+      <span class="annual-week-main">
+        <span class="annual-week-title">${escapeHtml(title)}</span>
+        <span class="annual-week-range">${escapeHtml(formatPlanDateRange(summary.dates))}</span>
+        ${holidayBadges ? `<span class="annual-holiday-list">${holidayBadges}</span>` : ''}
+      </span>
+      <span class="annual-week-progress">
+        <span>${summary.completedDays} / ${summary.totalDays}일</span>
+        <span class="annual-progress-track"><span style="width:${summary.percentage}%"></span></span>
+      </span>
+      <span class="annual-week-open" aria-hidden="true">›</span>`;
+    row.addEventListener('click', () => {
+      activeDateStr = summary.dates[0];
+      document.querySelector('.tab-item[data-tab="weekly"]').click();
+    });
+    container.appendChild(row);
+  });
 }
 
 // 6. 설정 탭 렌더링

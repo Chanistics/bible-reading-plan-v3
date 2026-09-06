@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="P274">
   
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@700;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=48">
+  <link rel="stylesheet" href="style.css?v=49">
   <link rel="icon" href="icon-192.png" type="image/png">
   <link rel="manifest" href="manifest.json">
 </head>
@@ -61,9 +61,15 @@
             <span class="stat-value" id="stat-progress-val">0%</span>
           </div>
           <!-- Box 3: 완료 / 전체 -->
-          <div class="stat-box">
-            <span class="stat-title">완료 / 전체</span>
-            <span class="stat-value" id="stat-completed-val">0 / -</span>
+          <div class="stat-box stat-progress-box">
+            <div class="stat-progress-heading">
+              <span class="stat-title">완료 / 전체</span>
+              <span class="stat-progress-count" id="stat-completed-val">0 / -</span>
+            </div>
+            <div id="stat-progress-track" class="stat-progress-track" role="progressbar" aria-label="전체 통독 진도" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <span id="stat-progress-bar" class="stat-progress-bar"></span>
+            </div>
+            <button id="btn-share-progress" class="btn-share-progress" type="button">공유하기</button>
           </div>
         </div>
       </div>
@@ -168,10 +174,27 @@
       <!-- Tab 3: 주간 보기 -->
       <div id="tab-content-weekly" class="tab-pane">
         <div class="dashboard-single-column">
-          <!-- Right Card: 이번 주 (7일) 일정 -->
           <div class="layout-right-card">
             <div class="weekly-schedule-section">
-              <h4 class="section-subtitle">📖 이번 주 (7일) 일정</h4>
+              <div class="weekly-view-header">
+                <button id="btn-week-prev" class="btn-week-nav" type="button" aria-label="이전 주">‹</button>
+                <div class="weekly-view-title-group">
+                  <span id="weekly-week-label" class="weekly-week-label">주간 보기</span>
+                  <h3 id="weekly-parasha-title" class="weekly-parasha-title">...</h3>
+                  <p id="weekly-date-range" class="weekly-date-range">...</p>
+                </div>
+                <div class="weekly-view-actions">
+                  <button id="btn-week-today" class="btn-week-today" type="button">오늘</button>
+                  <button id="btn-week-next" class="btn-week-nav" type="button" aria-label="다음 주">›</button>
+                </div>
+              </div>
+              <div class="weekly-summary-strip">
+                <div id="weekly-holiday-list" class="weekly-holiday-list" aria-label="이번 주 절기"></div>
+                <div class="weekly-progress-summary">
+                  <span id="weekly-progress-text">0 / 7일 완료</span>
+                  <div class="weekly-progress-track" aria-hidden="true"><span id="weekly-progress-bar"></span></div>
+                </div>
+              </div>
               <div class="weekly-schedule-list" id="weekly-schedule-container">
                 <!-- 7 Days rendered here -->
               </div>
@@ -182,6 +205,31 @@
 
       <!-- Tab 4: 연간 보기 -->
       <div id="tab-content-annual" class="tab-pane">
+        <div class="annual-view-header">
+          <div>
+            <span class="annual-view-kicker">연간 통독표</span>
+            <h3 class="annual-view-title">주차별 일정</h3>
+          </div>
+          <span id="annual-filter-count" class="annual-filter-count"></span>
+        </div>
+        <div class="annual-filter-bar" aria-label="연간 보기 필터">
+          <div class="annual-status-filter" role="group" aria-label="진행 상태">
+            <button type="button" class="annual-filter-button active" data-annual-status="all" aria-pressed="true">전체</button>
+            <button type="button" class="annual-filter-button" data-annual-status="incomplete" aria-pressed="false">미완료</button>
+            <button type="button" class="annual-filter-button" data-annual-status="holiday" aria-pressed="false">절기</button>
+          </div>
+          <label class="annual-book-filter">
+            <span>토라</span>
+            <select id="annual-book-select" class="form-control">
+              <option value="all">전체</option>
+              <option value="창세기">창세기</option>
+              <option value="출애굽기">출애굽기</option>
+              <option value="레위기">레위기</option>
+              <option value="민수기">민수기</option>
+              <option value="신명기">신명기</option>
+            </select>
+          </label>
+        </div>
         <div id="annual-container">
           <!-- Annual items injected here -->
         </div>
@@ -326,6 +374,25 @@
       </div>
     </div>
 
+    <!-- Progress Share Modal -->
+    <div id="progress-share-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="progress-share-title">
+      <div class="modal-content progress-share-modal-content">
+        <div class="modal-header">
+          <h3 id="progress-share-title" class="modal-title">통독 진도 공유</h3>
+          <button id="btn-close-share-modal" class="btn-close" type="button" aria-label="진도 공유 닫기">&times;</button>
+        </div>
+        <div class="modal-body progress-share-body">
+          <div id="progress-share-preview" class="progress-share-preview"></div>
+          <label for="progress-share-note" class="progress-share-label">짧은 묵상 또는 느낌</label>
+          <textarea id="progress-share-note" class="form-control progress-share-note" maxlength="200" rows="4" placeholder="오늘 마음에 남은 말씀이나 느낌을 적어보세요."></textarea>
+          <div class="progress-share-footer">
+            <span id="progress-share-status" class="progress-share-status" role="status" aria-live="polite"></span>
+            <button id="btn-submit-share" class="btn-primary progress-share-submit" type="button">카카오톡 공유</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Generating state overlay -->
     <div id="generating-overlay" class="generating-overlay hidden" role="status" aria-live="polite">
       <div class="spinner"></div>
@@ -340,7 +407,7 @@
   <script src="hebcal.js"></script>
   <script src="generator.js"></script>
   <script src="original-language-data.js?v=1"></script>
-  <script src="app.js?v=55"></script>
+  <script src="app.js?v=56"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

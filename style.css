@@ -4075,3 +4075,685 @@ body.light-mode .original-sentence-token:focus-visible {
     grid-template-rows: minmax(0, 1fr) minmax(210px, 0.75fr);
   }
 }
+
+/* V3 schedule overview and progress sharing */
+.stat-progress-box {
+  min-width: 220px;
+  text-align: left;
+  align-items: stretch;
+}
+
+.stat-progress-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.stat-progress-heading .stat-title {
+  margin-bottom: 0;
+}
+
+.stat-progress-count {
+  color: var(--ink-normal);
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.stat-progress-track,
+.weekly-progress-track,
+.annual-progress-track {
+  display: block;
+  overflow: hidden;
+  background: rgba(238, 232, 216, 0.12);
+  border-radius: 2px;
+}
+
+.stat-progress-track {
+  height: 7px;
+  margin: 0.52rem 0 0.58rem;
+}
+
+.stat-progress-bar,
+#weekly-progress-bar,
+.annual-progress-track > span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--gold);
+  transition: width 240ms ease;
+}
+
+.btn-share-progress {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  padding: 0;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-share-progress:hover {
+  color: var(--gold);
+}
+
+#tab-content-weekly .dashboard-single-column {
+  max-width: 1040px;
+}
+
+.weekly-view-header {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 1.15rem;
+}
+
+.weekly-view-title-group {
+  min-width: 0;
+}
+
+.weekly-week-label,
+.annual-view-kicker {
+  display: block;
+  color: var(--gold);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.weekly-parasha-title,
+.annual-view-title {
+  color: var(--ink-strong);
+  font-family: 'Noto Serif KR', serif;
+  font-size: 1.55rem;
+  line-height: 1.25;
+  margin: 0.12rem 0 0;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.weekly-date-range {
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  margin-top: 0.18rem;
+}
+
+.weekly-view-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-week-nav,
+.btn-week-today {
+  min-height: 38px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-normal);
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn-week-nav {
+  width: 42px;
+  padding: 0;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.btn-week-today {
+  padding: 0 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.btn-week-nav:hover:not(:disabled),
+.btn-week-today:hover:not(:disabled) {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.btn-week-nav:disabled,
+.btn-week-today:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
+
+.weekly-summary-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  margin-bottom: 0.85rem;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.weekly-holiday-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.weekly-holiday-badge,
+.annual-holiday-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(216, 189, 120, 0.42);
+  border-radius: 4px;
+  color: var(--gold);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.16rem 0.42rem;
+}
+
+.weekly-no-holiday {
+  color: var(--ink-dim);
+  font-size: 0.72rem;
+}
+
+.weekly-progress-summary {
+  display: grid;
+  grid-template-columns: auto 100px;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.weekly-progress-track {
+  width: 100px;
+  height: 5px;
+}
+
+.weekly-schedule-list {
+  gap: 0.5rem;
+}
+
+.schedule-day-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.85rem;
+  min-height: 76px;
+  padding: 0.6rem 0.85rem;
+  cursor: default;
+}
+
+.schedule-day-row.active {
+  background: color-mix(in srgb, var(--gold) 8%, var(--panel-solid));
+  border-color: rgba(216, 189, 120, 0.45);
+  border-left: 3px solid var(--gold);
+}
+
+.schedule-day-row.today:not(.active) {
+  border-color: rgba(120, 180, 190, 0.45);
+}
+
+.sched-chk-box {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sched-info {
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sched-date-block,
+.sched-day-content,
+.sched-day-readings,
+.sched-reading {
+  display: flex;
+}
+
+.sched-date-block {
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.sched-weekday {
+  color: var(--gold);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.sched-calendar-date {
+  color: var(--ink-strong);
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+
+.sched-day-count {
+  color: var(--ink-dim);
+  font-size: 0.64rem;
+}
+
+.sched-day-content {
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.sched-day-title:empty {
+  display: none;
+}
+
+.sched-day-badge {
+  border-color: rgba(216, 189, 120, 0.55);
+  background: var(--gold);
+  color: #171713;
+  border-radius: 4px;
+}
+
+.sched-day-badge.selected {
+  background: transparent;
+  color: var(--gold);
+}
+
+.sched-day-readings {
+  margin: 0;
+  gap: 0.38rem;
+  flex-wrap: wrap;
+}
+
+.sched-reading {
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.38rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  padding: 0.2rem 0.42rem;
+  color: var(--ink-normal);
+}
+
+.sched-reading-label {
+  flex: 0 0 auto;
+  font-size: 0.59rem;
+  font-weight: 800;
+}
+
+.sched-reading-text {
+  min-width: 0;
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+}
+
+.sched-reading.type-torah .sched-reading-label { color: #86b9e8; }
+.sched-reading.type-megillah .sched-reading-label { color: #c5a0dd; }
+.sched-reading.type-ot .sched-reading-label { color: #7fc58b; }
+.sched-reading.type-nt .sched-reading-label { color: #e79a90; }
+
+#tab-content-annual {
+  max-width: 1120px;
+}
+
+.annual-view-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.annual-filter-count {
+  color: var(--ink-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.annual-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0;
+  margin-bottom: 0.75rem;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.annual-status-filter {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.annual-filter-button {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-muted);
+  padding: 0 0.72rem;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.annual-filter-button:hover,
+.annual-filter-button.active {
+  border-color: var(--line-soft);
+  color: var(--ink-strong);
+  background: rgba(238, 232, 216, 0.07);
+}
+
+.annual-book-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.annual-book-filter .form-control {
+  width: 126px;
+  min-height: 34px;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+#annual-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.42rem;
+}
+
+.annual-week-summary {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 130px 18px;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  min-height: 76px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-solid) 92%, transparent);
+  color: inherit;
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.annual-week-summary:hover {
+  border-color: var(--line-strong);
+}
+
+.annual-week-summary.current {
+  border-left: 3px solid var(--gold);
+  background: color-mix(in srgb, var(--gold) 7%, var(--panel-solid));
+}
+
+.annual-week-summary.completed {
+  opacity: 0.72;
+}
+
+.annual-week-number {
+  display: flex;
+  flex-direction: column;
+  color: var(--ink-strong);
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.annual-week-number small {
+  color: var(--ink-dim);
+  font-size: 0.58rem;
+}
+
+.annual-week-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.14rem;
+}
+
+.annual-week-title {
+  color: var(--ink-strong);
+  font-size: 0.86rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.annual-week-range {
+  color: var(--ink-muted);
+  font-size: 0.68rem;
+}
+
+.annual-holiday-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+  margin-top: 0.2rem;
+}
+
+.annual-week-progress {
+  display: grid;
+  grid-template-columns: auto 58px;
+  align-items: center;
+  justify-content: end;
+  gap: 0.5rem;
+  color: var(--ink-muted);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.annual-progress-track {
+  width: 58px;
+  height: 4px;
+}
+
+.annual-week-open {
+  color: var(--ink-dim);
+  font-size: 1.25rem;
+}
+
+.annual-empty-state {
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius);
+  color: var(--ink-muted);
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.progress-share-modal-content {
+  width: min(92vw, 480px);
+}
+
+.progress-share-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.progress-share-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.15rem 1rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.progress-share-preview-label {
+  color: var(--gold);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.progress-share-preview strong {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  color: var(--ink-strong);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.progress-share-preview > span:last-child,
+.progress-share-label,
+.progress-share-status {
+  color: var(--ink-muted);
+  font-size: 0.74rem;
+}
+
+.progress-share-note {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.progress-share-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.progress-share-status {
+  min-height: 1.2rem;
+}
+
+.progress-share-submit {
+  flex: 0 0 auto;
+}
+
+body.light-mode .stat-progress-track,
+body.light-mode .weekly-progress-track,
+body.light-mode .annual-progress-track {
+  background: rgba(51, 45, 36, 0.14);
+}
+
+body.light-mode .schedule-day-row.active,
+body.light-mode .annual-week-summary.current {
+  background: color-mix(in srgb, var(--gold) 10%, #fff);
+}
+
+body.light-mode .annual-week-summary {
+  background: #fff;
+}
+
+@media (max-width: 700px) {
+  .header-right {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .stat-progress-box {
+    grid-column: 1 / -1;
+    padding: 0.7rem 0.75rem;
+  }
+
+  .weekly-view-header {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    gap: 0.55rem;
+  }
+
+  .btn-week-nav {
+    width: 36px;
+    min-height: 36px;
+  }
+
+  .btn-week-today {
+    min-height: 36px;
+    padding: 0 0.58rem;
+  }
+
+  .weekly-parasha-title,
+  .annual-view-title {
+    font-size: 1.2rem;
+  }
+
+  .weekly-summary-strip,
+  .annual-filter-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .weekly-progress-summary {
+    grid-template-columns: minmax(0, 1fr) 100px;
+  }
+
+  .schedule-day-row {
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 0.62rem;
+    padding: 0.55rem 0.62rem;
+  }
+
+  .sched-info {
+    grid-template-columns: 62px minmax(0, 1fr);
+    gap: 0.65rem;
+  }
+
+  .sched-reading {
+    width: 100%;
+  }
+
+  .annual-filter-bar {
+    gap: 0.6rem;
+  }
+
+  .annual-status-filter {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .annual-book-filter {
+    justify-content: space-between;
+  }
+
+  .annual-book-filter .form-control {
+    width: 150px;
+  }
+
+  .annual-week-summary {
+    grid-template-columns: 46px minmax(0, 1fr) 14px;
+    gap: 0.55rem;
+    padding: 0.6rem;
+  }
+
+  .annual-week-progress {
+    grid-column: 2;
+    justify-content: start;
+    margin-top: 0.2rem;
+  }
+
+  .annual-week-open {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+
+  .progress-share-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .progress-share-submit {
+    width: 100%;
+  }
+}

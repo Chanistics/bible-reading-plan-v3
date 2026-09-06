@@ -157,12 +157,22 @@ async function main() {
     assert.strictEqual(actualMegillotReadings.length, expectedMegillot.size, `${start}: Five Megillot chapters must be assigned exactly once`);
     assert.deepStrictEqual(Array.from(actualMegillot).sort(), Array.from(expectedMegillot).sort(), `${start}: complete Five Megillot distribution`);
 
-    const actualTorah = new Set();
+    const actualTorahReadings = [];
     dates.forEach(date => {
-      collectReadingVerses(plan[date].torah, verseSetsByEnglishBook).forEach(key => actualTorah.add(key));
-      collectReadingVerses(plan[date].torahCompletion, verseSetsByEnglishBook).forEach(key => actualTorah.add(key));
+      actualTorahReadings.push(...collectReadingVerses(plan[date].torah, verseSetsByEnglishBook));
+      actualTorahReadings.push(...collectReadingVerses(plan[date].torahCompletion, verseSetsByEnglishBook));
     });
+    const actualTorah = new Set(actualTorahReadings);
     assert.deepStrictEqual(Array.from(actualTorah).sort(), Array.from(expectedTorahVerses).sort(), `${start}: complete Torah verse distribution`);
+
+    const torahFrequency = new Map();
+    actualTorahReadings.forEach(key => torahFrequency.set(key, (torahFrequency.get(key) || 0) + 1));
+    const repeatedTorahVerses = Array.from(torahFrequency).filter(([, count]) => count > 1);
+    const allowedSpecialRepeat = new Set(Array.from({ length: 7 }, (_, offset) => `Numbers 28:${offset + 9}`));
+    repeatedTorahVerses.forEach(([key, count]) => {
+      assert(allowedSpecialRepeat.has(key), `${start}: unexpected repeated Torah verse ${key}`);
+      assert.strictEqual(count, 2, `${start}: special Torah verse must not occur more than twice: ${key}`);
+    });
   }
 
   console.log('Coverage checks passed: 66 books, 1,189 chapters, 31,102 Korean verses, all Torah/Megillot/OT/NT readings without Megillot duplicates, and every bundled parasha meaning.');

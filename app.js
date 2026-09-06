@@ -3,8 +3,9 @@
 const STATE_KEY = 'parashat_tracker_state';
 const PLAN_KEY_PREFIX = 'parashat_plan_v12_israel_';
 const LEGACY_PLAN_KEY_PREFIX = 'parashat_plan_v11_';
-const DEFAULT_FAMILY_NAME = "P274";
+const DEFAULT_FAMILY_NAME = "Come and See!";
 const LEGACY_DEFAULT_NAMES = new Set([
+  "P274",
   "P274 Bible Reading Plan",
   "P274 v3",
   "P274 Reading Plan 2.5",

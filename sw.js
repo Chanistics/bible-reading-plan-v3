@@ -1,4 +1,4 @@
-const CACHE_NAME = 'p274-v3-shell-v36';
+const CACHE_NAME = 'p274-v3-shell-v37';
 const RUNTIME_CACHE_NAME = 'p274-v3-scripture-v3';
 const urlsToCache = [
   './',
@@ -17,7 +17,7 @@ const urlsToCache = [
   './original-data/hebrew-lexicon.js',
   './original-data/greek-lexicon.js',
   './original-data/kjv1769-strong/index.js',
-  './app.js?v=58',
+  './app.js?v=59',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

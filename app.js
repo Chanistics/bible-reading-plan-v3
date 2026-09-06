@@ -326,7 +326,7 @@ function normalizeTorahGuideBook(bookName) {
 function parseTorahGuideReading(reading) {
   if (!reading) return null;
   const match = String(reading).match(
-    /^(Genesis|Exodus|Leviticus|Numbers|Deuteronomy)\s+(\d+):(\d+)-(?:((?:\d+)):)?(\d+)$/
+    /^(Genesis|Exodus|Leviticus|Numbers|Deuteronomy)\s+(\d+):(\d+)-(?:((?:\d+)):)?(\d+)/
   );
   if (!match) return null;
   return {
@@ -371,7 +371,7 @@ function getTorahGuideStagesForWeek(weekDateStrs) {
   const ranges = weekDateStrs
     .filter(Boolean)
     .flatMap(dateStr => {
-      const dayData = currentPlan && currentPlan[dateStr];
+      const dayData = getCalendarDayPlan(dateStr);
       if (!dayData) return [];
       return [dayData.torah, dayData.torahCompletion]
         .map(parseTorahGuideReading)

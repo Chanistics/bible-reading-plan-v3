@@ -70,6 +70,11 @@ async function main() {
   context.sessionStorage = { getItem: () => null };
   context.document = { getElementById: () => ({ addEventListener: () => {} }) };
   load('app.js');
+  assert.strictEqual(
+    vm.runInContext("getBiblicalHolidayName('Pesach Sheni')", context),
+    '두 번째 유월절 (Pesach Sheni)',
+    'Pesach Sheni must not be labeled as the regular Passover festival'
+  );
   context.window.TEST_CURRENT_PLAN = context.window.Generator.generateHebrewYearPlan(
     [...years['2025'], ...years['2026']],
     sundayBefore(years['2025'].find(item => item.title === 'Parashat Bereshit').date),

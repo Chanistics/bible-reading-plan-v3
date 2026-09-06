@@ -283,6 +283,7 @@ const BIBLICAL_HOLIDAYS_MAP = {
   'shmini atzeret': '쉐미니 아쩨렛 (Shmini Atzeret)',
   'simchat torah': '심하트 토라 (Simchat Torah)',
   'purim': '부림절 (Purim)',
+  'pesach sheni': '두 번째 유월절 (Pesach Sheni)',
   'pesach': '유월절 (Pesach)',
   'passover': '유월절 (Pesach)',
   'shavuot': '칠칠절 (Shavuot)'
@@ -1186,7 +1187,8 @@ async function renderDashboard() {
     if (activeBiblicalHoliday) {
       const lower = activeBiblicalHoliday.toLowerCase();
       let holidayKey = null;
-      if (lower.includes('pesach') || lower.includes('passover')) holidayKey = 'Pesach';
+      if (lower.includes('pesach sheni')) holidayKey = 'Pesach Sheni';
+      else if (lower.includes('pesach') || lower.includes('passover')) holidayKey = 'Pesach';
       else if (lower.includes('shavuot')) holidayKey = 'Shavuot';
       else if (lower.includes('rosh hashana')) holidayKey = 'Rosh Hashana';
       else if (lower.includes('yom kippur')) holidayKey = 'Yom Kippur';
@@ -1196,6 +1198,10 @@ async function renderDashboard() {
       else if (lower.includes('purim')) holidayKey = 'Purim';
 
       const BIBLICAL_HOLIDAYS_DETAIL = {
+        'Pesach Sheni': {
+          name: '두 번째 유월절 (Pesach Sheni)',
+          desc: '<strong>성경적 배경:</strong> 시체로 인해 부정해졌거나 먼 길에 있어 정한 때에 유월절을 지키지 못한 사람에게, 하나님께서 둘째 달 14일에 유월절을 지킬 기회를 허락하셨습니다(민 9:6-14).<br><br><strong>구분:</strong> 정규 유월절이 다시 8일 동안 반복되는 것이 아니라, 첫 유월절을 지키지 못한 사람을 위한 한 달 뒤의 보충일입니다.'
+        },
         'Pesach': {
           name: '유월절 (Pesach / Passover)',
           desc: '<strong>성경적 배경:</strong> 애굽의 종살이에서 이스라엘을 구원하기 위해 열 번째 재앙(장자의 죽음)을 내리실 때, 어린 양의 피를 문설주에 바른 집은 죽음의 재앙이 "넘어갔던(Passover)" 것에서 유래합니다(출 12장).<br><br><strong>문화와 의미:</strong> 누룩 없는 빵인 무교병을 먹으며 고난을 기억하고 자유의 기쁨을 선포합니다. 신약 성경에서는 예수 그리스도를 세상 죄를 지고 가는 유월절 어린 양의 실체로 해석합니다(고전 5:7).'

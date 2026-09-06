@@ -61,6 +61,22 @@ function convertHebcalTorahReading(reading) {
   );
 }
 
+function getMegillahTypeForHolidayName(holidayName) {
+  const name = String(holidayName || '')
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u02bc]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (/^(?:pesach|passover)(?: (?:i|ii|iii|iv|v|vi|vii|viii)(?: \([^)]*\))?)?$/.test(name)) return 'Song';
+  if (/^shavuot(?: (?:i|ii))?$/.test(name)) return 'Ruth';
+  if (/^tish'a b'av(?: \(observed\))?$/.test(name)) return 'Lam';
+  if (/^sukkot(?: (?:i|ii|iii|iv|v|vi|vii)(?: \([^)]*\))?)?$/.test(name) ||
+      name === 'shmini atzeret' || name === 'simchat torah') return 'Eccl';
+  if (name === 'purim') return 'Esth';
+  return null;
+}
+
 /**
  * 유대력 독서 주기에 맞춘 통독 플랜을 생성합니다.
  * @param {Array} hebcalItems - Hebcal API에서 가져온 달력 아이템 배열
@@ -170,6 +186,7 @@ function generateHebrewYearPlan(hebcalItems, startDateStr, totalDays = 365) {
     'Esth': ['에스더 1-2장', '에스더 3-4장', '에스더 5-6장', '에스더 7장', '에스더 8장', '에스더 9장', '에스더 10장']
   };
 
+  const assignedMegillahTypes = new Set();
   Object.keys(weeks).forEach(sunStr => {
     const weekDates = weeks[sunStr];
     let megillahType = null;
@@ -179,30 +196,17 @@ function generateHebrewYearPlan(hebcalItems, startDateStr, totalDays = 365) {
       const dayData = plan[dStr];
       if (dayData.holidays) {
         for (const h of dayData.holidays) {
-          const name = h.name.toLowerCase().replace(/[\u2018\u2019\u02BC]/g, "'");
-          if (name.includes('pesach') || name.includes('passover')) {
-            megillahType = 'Song';
-            break;
-          }
-          if (name.includes('shavuot')) {
-            megillahType = 'Ruth';
-            break;
-          }
-          if (name.includes("tisha b'av") || name.includes("tish'a b'av")) {
-            megillahType = 'Lam';
-            break;
-          }
-          if (name.includes('sukkot') || name.includes('shmini atzeret') || name.includes('simchat torah')) {
-            megillahType = 'Eccl';
-            break;
-          }
-          if (name.includes('purim')) {
-            megillahType = 'Esth';
-            break;
-          }
+          megillahType = getMegillahTypeForHolidayName(h.name);
+          if (megillahType) break;
         }
       }
       if (megillahType) break;
+    }
+
+    if (megillahType && assignedMegillahTypes.has(megillahType)) {
+      megillahType = null;
+    } else if (megillahType) {
+      assignedMegillahTypes.add(megillahType);
     }
 
     // 절기 주간인 경우 메길롯 일정 하루씩 배분
@@ -283,5 +287,6 @@ function generateHebrewYearPlan(hebcalItems, startDateStr, totalDays = 365) {
 }
 
 window.Generator = {
-  generateHebrewYearPlan
+  generateHebrewYearPlan,
+  getMegillahTypeForHolidayName
 };

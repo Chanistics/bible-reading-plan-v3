@@ -75,6 +75,23 @@ async function main() {
     '두 번째 유월절 (Pesach Sheni)',
     'Pesach Sheni must not be labeled as the regular Passover festival'
   );
+  assert.strictEqual(
+    vm.runInContext("getBiblicalHolidayName('Rosh Hashana LaBehemot')", context),
+    null,
+    'Rosh Hashana LaBehemot must not be labeled as the Feast of Trumpets'
+  );
+  ['Erev Purim', 'Purim Katan', 'Shushan Purim Katan', 'Purim Meshulash'].forEach(name => {
+    context.window.TEST_HOLIDAY_NAME = name;
+    assert.strictEqual(
+      vm.runInContext('getBiblicalHolidayName(window.TEST_HOLIDAY_NAME)', context),
+      null,
+      `${name} must not be labeled as the main Purim festival`
+    );
+  });
+  assert.strictEqual(context.window.Generator.getMegillahTypeForHolidayName('Pesach Sheni'), null);
+  assert.strictEqual(context.window.Generator.getMegillahTypeForHolidayName('Purim Katan'), null);
+  assert.strictEqual(context.window.Generator.getMegillahTypeForHolidayName('Pesach I'), 'Song');
+  assert.strictEqual(context.window.Generator.getMegillahTypeForHolidayName('Purim'), 'Esth');
   context.window.TEST_CURRENT_PLAN = context.window.Generator.generateHebrewYearPlan(
     [...years['2025'], ...years['2026']],
     sundayBefore(years['2025'].find(item => item.title === 'Parashat Bereshit').date),

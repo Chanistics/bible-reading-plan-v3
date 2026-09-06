@@ -1,7 +1,7 @@
 // app.js
 
 const STATE_KEY = 'parashat_tracker_state';
-const PLAN_KEY_PREFIX = 'parashat_plan_v10_';
+const PLAN_KEY_PREFIX = 'parashat_plan_v11_';
 const DEFAULT_FAMILY_NAME = "P274";
 const LEGACY_DEFAULT_NAMES = new Set([
   "P274 Bible Reading Plan",
@@ -275,19 +275,18 @@ function formatReadingRange(chapters, useShortStyle = false) {
   return groupStrings.join(', ');
 }
 
-// 성경에 기록된 절기 (레위기 23장 절기 + 에스더 부림절 + 심하트 토라)
-const BIBLICAL_HOLIDAYS_MAP = {
-  'rosh hashana': '나팔절 (Rosh Hashana)',
-  'yom kippur': '대속죄일 (Yom Kippur)',
-  'sukkot': '초막절 (Sukkot)',
-  'shmini atzeret': '쉐미니 아쩨렛 (Shmini Atzeret)',
-  'simchat torah': '심하트 토라 (Simchat Torah)',
-  'purim': '부림절 (Purim)',
-  'pesach sheni': '두 번째 유월절 (Pesach Sheni)',
-  'pesach': '유월절 (Pesach)',
-  'passover': '유월절 (Pesach)',
-  'shavuot': '칠칠절 (Shavuot)'
-};
+// 통독표에 표시할 주요 절기만 정확한 Hebcal 명칭으로 허용합니다.
+const BIBLICAL_HOLIDAY_RULES = [
+  { pattern: /^rosh hashanah?(?: \d{4}| ii)?$/, key: 'Rosh Hashana', name: '나팔절 (Rosh Hashana)' },
+  { pattern: /^yom kippur$/, key: 'Yom Kippur', name: '대속죄일 (Yom Kippur)' },
+  { pattern: /^sukkot(?: (?:i|ii|iii|iv|v|vi|vii)(?: \([^)]*\))?)?$/, key: 'Sukkot', name: '초막절 (Sukkot)' },
+  { pattern: /^shmini atzeret$/, key: 'Shmini Atzeret', name: '쉐미니 아쩨렛 (Shmini Atzeret)' },
+  { pattern: /^simchat torah$/, key: 'Simchat Torah', name: '심하트 토라 (Simchat Torah)' },
+  { pattern: /^purim$/, key: 'Purim', name: '부림절 (Purim)' },
+  { pattern: /^pesach sheni$/, key: 'Pesach Sheni', name: '두 번째 유월절 (Pesach Sheni)' },
+  { pattern: /^(?:pesach|passover)(?: (?:i|ii|iii|iv|v|vi|vii|viii)(?: \([^)]*\))?)?$/, key: 'Pesach', name: '유월절 (Pesach)' },
+  { pattern: /^shavuot(?: (?:i|ii))?$/, key: 'Shavuot', name: '칠칠절 (Shavuot)' }
+];
 
 const HOLIDAY_DATE_OVERRIDES = {
   '나팔절 (Rosh Hashana)': {
@@ -295,18 +294,19 @@ const HOLIDAY_DATE_OVERRIDES = {
   }
 };
 
-function getBiblicalHolidayName(name) {
+function getBiblicalHolidayRule(name) {
   if (!name) return null;
-  const lower = name.toLowerCase();
-  if (lower.includes('rosh chodesh') || lower.includes('shabbat')) return null;
-  if (lower.includes('erev') && !lower.includes('erev purim')) return null;
-  
-  for (const [key, value] of Object.entries(BIBLICAL_HOLIDAYS_MAP)) {
-    if (lower.includes(key)) {
-      return value;
-    }
-  }
-  return null;
+  const normalized = String(name)
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u02bc]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+  return BIBLICAL_HOLIDAY_RULES.find(rule => rule.pattern.test(normalized)) || null;
+}
+
+function getBiblicalHolidayName(name) {
+  const rule = getBiblicalHolidayRule(name);
+  return rule ? rule.name : null;
 }
 
 function normalizeHolidayDateForDisplay(name, dateStr) {
@@ -1185,17 +1185,8 @@ async function renderDashboard() {
     }
 
     if (activeBiblicalHoliday) {
-      const lower = activeBiblicalHoliday.toLowerCase();
-      let holidayKey = null;
-      if (lower.includes('pesach sheni')) holidayKey = 'Pesach Sheni';
-      else if (lower.includes('pesach') || lower.includes('passover')) holidayKey = 'Pesach';
-      else if (lower.includes('shavuot')) holidayKey = 'Shavuot';
-      else if (lower.includes('rosh hashana')) holidayKey = 'Rosh Hashana';
-      else if (lower.includes('yom kippur')) holidayKey = 'Yom Kippur';
-      else if (lower.includes('sukkot')) holidayKey = 'Sukkot';
-      else if (lower.includes('shmini atzeret')) holidayKey = 'Shmini Atzeret';
-      else if (lower.includes('simchat torah')) holidayKey = 'Simchat Torah';
-      else if (lower.includes('purim')) holidayKey = 'Purim';
+      const holidayRule = getBiblicalHolidayRule(activeBiblicalHoliday);
+      const holidayKey = holidayRule ? holidayRule.key : null;
 
       const BIBLICAL_HOLIDAYS_DETAIL = {
         'Pesach Sheni': {

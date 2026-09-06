@@ -152,7 +152,9 @@ async function main() {
     assert.deepStrictEqual(Array.from(dates.flatMap(date => plan[date].ot)), expectedOt, `${start}: complete OT chapter distribution`);
     assert.deepStrictEqual(Array.from(dates.flatMap(date => plan[date].nt)), expectedNt, `${start}: complete NT chapter distribution`);
 
-    const actualMegillot = new Set(dates.flatMap(date => expandMegillah(plan[date].megillah)));
+    const actualMegillotReadings = dates.flatMap(date => expandMegillah(plan[date].megillah));
+    const actualMegillot = new Set(actualMegillotReadings);
+    assert.strictEqual(actualMegillotReadings.length, expectedMegillot.size, `${start}: Five Megillot chapters must be assigned exactly once`);
     assert.deepStrictEqual(Array.from(actualMegillot).sort(), Array.from(expectedMegillot).sort(), `${start}: complete Five Megillot distribution`);
 
     const actualTorah = new Set();
@@ -163,7 +165,7 @@ async function main() {
     assert.deepStrictEqual(Array.from(actualTorah).sort(), Array.from(expectedTorahVerses).sort(), `${start}: complete Torah verse distribution`);
   }
 
-  console.log('Coverage checks passed: 66 books, 1,189 chapters, 31,102 Korean verses, all Torah/Megillot/OT/NT readings, and every bundled parasha meaning.');
+  console.log('Coverage checks passed: 66 books, 1,189 chapters, 31,102 Korean verses, all Torah/Megillot/OT/NT readings without Megillot duplicates, and every bundled parasha meaning.');
 }
 
 main().catch(error => {

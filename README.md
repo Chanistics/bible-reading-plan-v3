@@ -16,7 +16,7 @@
 
 ## 데이터
 
-- 개역한글: GetBible Korean Revised Version 정적 데이터
+- 개역한글: Korean-Bible-1961-KRV 정적 데이터 (대한성서공회 성경전서 개역한글판 표기 유지)
 - KJV 1769 및 신약 원어: KJV1769x/Translator's Textus Receptus 계열 데이터
 - 구약 원어: OpenHebrewBible BHSA 8-layer 및 공식 KJV 대응표
 - 달력: Hebcal Jewish Calendar API 정적 스냅샷
@@ -25,4 +25,4 @@
 
 ## 검증
 
-`npm test`는 일정 경계와 전체 통독 배분, JavaScript 문법, 66권 원어 절 커버리지, 사전 의미 무결성, KJV Strong 위치를 검사합니다. 같은 검사는 GitHub Pages 배포 전에 자동 실행됩니다.
+`npm test`는 일정 경계와 전체 통독 배분, JavaScript 문법, 66권·1,189장·31,102절 커버리지, 모든 파라샤 의미, 원어 절 커버리지, 사전 의미 무결성, KJV Strong 위치를 검사합니다. 같은 검사는 GitHub Pages 배포 전에 자동 실행됩니다.

@@ -1,7 +1,7 @@
 // app.js
 
 const STATE_KEY = 'parashat_tracker_state';
-const PLAN_KEY_PREFIX = 'parashat_plan_v9_';
+const PLAN_KEY_PREFIX = 'parashat_plan_v10_';
 const DEFAULT_FAMILY_NAME = "P274";
 const LEGACY_DEFAULT_NAMES = new Set([
   "P274 Bible Reading Plan",
@@ -315,10 +315,14 @@ function normalizeHolidayDateForDisplay(name, dateStr) {
 // 상세 파라샤 설명 매핑 및 더블 포션 처리 지원
 function getParashaDetail(name) {
   if (!name) return null;
-  const cleanName = name.replace(/^Parashat\s+|^Parashas\s+/i, '').trim();
+  const cleanName = window.normalizeParashaName
+    ? window.normalizeParashaName(name)
+    : name.replace(/[\u2018\u2019\u02BC]/g, "'").replace(/^Parashat\s+|^Parashas\s+/i, '').trim();
   
   // 스펠링 예외 매핑
   const lookupName = cleanName === "Sh'lach" ? "Shelach" :
+                     cleanName.toLowerCase() === "ha'azinu" ? "Ha'Azinu" :
+                     cleanName.toLowerCase().replace(/[^a-z0-9]/g, '') === 'behaalotcha' ? "Behaalotcha" :
                      (cleanName === "V'Zot HaBerachah" || cleanName === "Vezot Haberakhah") ? "Vezot Haberakhah" :
                      cleanName;
 
@@ -472,6 +476,7 @@ function formatDateWithWeekday(dateStr) {
 // 하루치 일정이 전부 다 읽었는지 체크
 function isDayCompleted(dayData, progressDay) {
   if (dayData.torah && !progressDay.torah) return false;
+  if (dayData.torahCompletion && !progressDay.torahCompletion) return false;
   if (dayData.megillah && !progressDay.megillah) return false;
   if (dayData.ot && dayData.ot.length > 0 && !progressDay.ot) return false;
   if (dayData.nt && dayData.nt.length > 0 && !progressDay.nt) return false;
@@ -496,6 +501,14 @@ function calculateStats() {
       totalReadings++;
       dayReadingsCount++;
       if (progressDay.torah) {
+        completedReadings++;
+        dayCompletedCount++;
+      }
+    }
+    if (dayData.torahCompletion) {
+      totalReadings++;
+      dayReadingsCount++;
+      if (progressDay.torahCompletion) {
         completedReadings++;
         dayCompletedCount++;
       }
@@ -961,11 +974,13 @@ function toggleDayCompletion(dateStr, markComplete) {
   
   if (markComplete) {
     if (dayData.torah) appState.progress[dateStr].torah = true;
+    if (dayData.torahCompletion) appState.progress[dateStr].torahCompletion = true;
     if (dayData.megillah) appState.progress[dateStr].megillah = true;
     if (dayData.ot && dayData.ot.length > 0) appState.progress[dateStr].ot = true;
     if (dayData.nt && dayData.nt.length > 0) appState.progress[dateStr].nt = true;
   } else {
     if (dayData.torah) appState.progress[dateStr].torah = false;
+    if (dayData.torahCompletion) appState.progress[dateStr].torahCompletion = false;
     if (dayData.megillah) appState.progress[dateStr].megillah = false;
     if (dayData.ot && dayData.ot.length > 0) appState.progress[dateStr].ot = false;
     if (dayData.nt && dayData.nt.length > 0) appState.progress[dateStr].nt = false;
@@ -1043,6 +1058,9 @@ async function renderDashboard() {
     const meta = window.getParashaMeta(pName);
     const weekNum = getPlanWeekNumber(todayStr);
     const torahTranslated = window.BIBLE_DATA.translateTorahReading(todayPlan.torah);
+    const torahCompletionText = todayPlan.torahCompletion
+      ? ` | 토라 완독: ${window.BIBLE_DATA.translateTorahReading(todayPlan.torahCompletion)}`
+      : '';
     const megillahText = todayPlan.megillah ? ` | ${todayPlan.megillah}` : '';
     let otText = '';
     if (todayPlan.ot && todayPlan.ot.length > 0) {
@@ -1057,7 +1075,7 @@ async function renderDashboard() {
       : pName.includes("샬롬")
       ? `${weekNum}주차 샬롬 (Shalom)`
       : `${weekNum}주차 ${pName} (${meta.ko})`;
-    const pBody = `${torahTranslated || '일정 없음'}${megillahText}${otText}${ntText}`;
+    const pBody = `${torahTranslated || '일정 없음'}${torahCompletionText}${megillahText}${otText}${ntText}`;
 
     document.getElementById('ticker-reading-text').innerHTML = 
       `<div class="ticker-title-sub">${pTitle}</div>` +
@@ -1195,6 +1213,10 @@ async function renderDashboard() {
       const title = window.BIBLE_DATA.translateTorahReading(todayPlan.torah);
       checklistContainer.appendChild(createChecklistItem('torah', '토라포션', title, progressToday.torah, todayStr));
     }
+    if (todayPlan.torahCompletion) {
+      const title = window.BIBLE_DATA.translateTorahReading(todayPlan.torahCompletion);
+      checklistContainer.appendChild(createChecklistItem('torahCompletion', '토라 완독', title, progressToday.torahCompletion, todayStr));
+    }
     if (todayPlan.megillah) {
       checklistContainer.appendChild(createChecklistItem('megillah', '메길롯', todayPlan.megillah, progressToday.megillah, todayStr));
     }
@@ -1231,6 +1253,9 @@ async function renderDashboard() {
     const readings = [];
     if (dayData.torah) {
       readings.push(`<span class="sched-tag torah">${abbreviateReading(window.BIBLE_DATA.translateTorahReading(dayData.torah))}</span>`);
+    }
+    if (dayData.torahCompletion) {
+      readings.push(`<span class="sched-tag torah">${abbreviateReading(window.BIBLE_DATA.translateTorahReading(dayData.torahCompletion))}</span>`);
     }
     if (dayData.megillah) {
       readings.push(`<span class="sched-tag megillah">${abbreviateReading(dayData.megillah)}</span>`);
@@ -1280,11 +1305,12 @@ async function renderDashboard() {
 
 function createChecklistItem(type, label, title, isDone, dateStr, passageData) {
   const div = document.createElement('div');
+  const visualType = type === 'torahCompletion' ? 'torah' : type;
   div.className = `reading-item ${isDone ? 'done' : ''}`;
   div.innerHTML = `
     <div class="chk-box"></div>
     <div class="rd-info">
-      <div class="rd-type type-${type}">${label}</div>
+      <div class="rd-type type-${visualType}">${label}</div>
       <div class="rd-title">${title}</div>
     </div>
     <button class="btn-read-passage" title="본문 읽기">
@@ -1407,6 +1433,10 @@ function renderAnnualView() {
       if (data.torah) {
         const torahTitle = window.BIBLE_DATA.translateTorahReading(data.torah);
         html += `<div class="rd-tag type-torah ${prog.torah?'done':''}">${torahTitle}</div>`;
+      }
+      if (data.torahCompletion) {
+        const torahTitle = window.BIBLE_DATA.translateTorahReading(data.torahCompletion);
+        html += `<div class="rd-tag type-torah ${prog.torahCompletion?'done':''}">토라 완독 · ${torahTitle}</div>`;
       }
       if (data.megillah) {
         html += `<div class="rd-tag type-megillah ${prog.megillah?'done':''}">${data.megillah}</div>`;
@@ -1659,6 +1689,9 @@ function openParashaDetailModal(weekDateStrs, weekParashaName) {
     const tags = [];
     if (dayData.torah) {
       tags.push(`<div class="parasha-reading-tag torah"><strong>토라</strong><span>${escapeHtml(window.BIBLE_DATA.translateTorahReading(dayData.torah))}</span></div>`);
+    }
+    if (dayData.torahCompletion) {
+      tags.push(`<div class="parasha-reading-tag torah"><strong>토라 완독</strong><span>${escapeHtml(window.BIBLE_DATA.translateTorahReading(dayData.torahCompletion))}</span></div>`);
     }
     if (dayData.megillah) {
       tags.push(`<div class="parasha-reading-tag megillah"><strong>메길롯</strong><span>${escapeHtml(dayData.megillah)}</span></div>`);
@@ -3215,9 +3248,7 @@ function parseKoreanReference(korRef) {
 }
 
 async function fetchBibleChapterPair(bookNumber, chapter, bookNameKOR) {
-  const koreanUrl = `https://api.getbible.net/v2/korean/${bookNumber}/${chapter}.json`;
-
-  const koreanPromise = loadKoreanBibleBookData(bookNumber).then(async localBook => {
+  const koreanPromise = loadKoreanBibleBookData(bookNumber).then(localBook => {
     const localVerses = localBook && localBook.chapters ? localBook.chapters[Number(chapter)] : null;
     if (Array.isArray(localVerses)) {
       return {
@@ -3226,9 +3257,7 @@ async function fetchBibleChapterPair(bookNumber, chapter, bookNameKOR) {
         verses: localVerses.map(([verse, text]) => ({ chapter: Number(chapter), verse, text }))
       };
     }
-    const res = await fetch(koreanUrl);
-    if (!res.ok) throw new Error(`Korean API returned status ${res.status}`);
-    return res.json();
+    return null;
   }).catch(err => {
     console.warn(`Korean chapter unavailable: ${bookNameKOR} ${chapter}`, err);
     return null;
@@ -3255,13 +3284,21 @@ async function fetchBibleChapterPair(bookNumber, chapter, bookNameKOR) {
   if (!koreanData && Object.keys(kjvVersesByNumber).length === 0) {
     throw new Error(`No local or remote scripture data for ${bookNameKOR} ${chapter}`);
   }
-  const verses = koreanData && Array.isArray(koreanData.verses)
-    ? koreanData.verses
-    : Object.keys(kjvVersesByNumber).map(Number).sort((a, b) => a - b).map(verse => ({
-        chapter: Number(chapter),
-        verse,
-        text: ''
-      }));
+  const koreanVersesByNumber = {};
+  if (koreanData && Array.isArray(koreanData.verses)) {
+    koreanData.verses.forEach(verse => {
+      koreanVersesByNumber[Number(verse.verse)] = verse;
+    });
+  }
+  const verseNumbers = Array.from(new Set([
+    ...Object.keys(koreanVersesByNumber),
+    ...Object.keys(kjvVersesByNumber)
+  ].map(Number))).sort((a, b) => a - b);
+  const verses = verseNumbers.map(verse => koreanVersesByNumber[verse] || {
+    chapter: Number(chapter),
+    verse,
+    text: ''
+  });
 
   return {
     ...(koreanData || {}),

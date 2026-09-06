@@ -59,19 +59,39 @@ const PARASHA_META = {
   "Vezot Haberakhah": { ko: "베조트 하브라하", he: "וְזֹאת הַבְּרָכָה", meaning: "이것이 축복이다" }
 };
 
+function normalizeParashaName(name) {
+  return String(name || '')
+    .replace(/[\u2018\u2019\u02BC]/g, "'")
+    .replace(/^Parashat\s+|^Parashas\s+/i, '')
+    .trim();
+}
+
+function findParashaMeta(name) {
+  const normalized = normalizeParashaName(name);
+  if (PARASHA_META[normalized]) return PARASHA_META[normalized];
+
+  const comparable = normalized.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const matchingKey = Object.keys(PARASHA_META).find(key =>
+    key.toLowerCase().replace(/[^a-z0-9]/g, '') === comparable
+  );
+  return matchingKey ? PARASHA_META[matchingKey] : null;
+}
+
+window.normalizeParashaName = normalizeParashaName;
 window.getParashaMeta = function(name) {
   if (!name) return { ko: "파라샤 없음", he: "", meaning: "의미 없음" };
-  
-  const cleanName = name.replace(/^Parashat\s+|^Parashas\s+/i, '').trim();
-  if (PARASHA_META[cleanName]) return PARASHA_META[cleanName];
+
+  const cleanName = normalizeParashaName(name);
+  const directMeta = findParashaMeta(cleanName);
+  if (directMeta) return directMeta;
   
   // Handle double portions (e.g. Tazria-Metzora)
   if (cleanName.includes('-')) {
     const parts = cleanName.split('-');
     const p1 = parts[0].trim().replace(/^Parashat\s+|^Parashas\s+/i, '');
     const p2 = parts[1].trim().replace(/^Parashat\s+|^Parashas\s+/i, '');
-    const m1 = PARASHA_META[p1];
-    const m2 = PARASHA_META[p2];
+    const m1 = findParashaMeta(p1);
+    const m2 = findParashaMeta(p2);
     if (m1 && m2) {
       return {
         ko: `${m1.ko}-${m2.ko}`,

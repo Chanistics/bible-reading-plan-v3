@@ -1,6 +1,66 @@
 // generator.js
 // 연간 리딩플랜 자동 생성기 (유대력 절기/토라포션/메길롯/구약/신약 통합)
 
+const TORAH_VERSE_MAPPING_RULES = [
+  ['Genesis', 32, 1, 1, 31, 55],
+  ['Genesis', 32, 2, 33, 32, 1],
+  ['Exodus', 7, 26, 29, 8, 1],
+  ['Exodus', 8, 1, 28, 8, 5],
+  ['Exodus', 21, 37, 37, 22, 1],
+  ['Exodus', 22, 1, 30, 22, 2],
+  ['Leviticus', 5, 20, 26, 6, 1],
+  ['Leviticus', 6, 1, 23, 6, 8],
+  ['Numbers', 17, 1, 15, 16, 36],
+  ['Numbers', 17, 16, 28, 17, 1],
+  ['Numbers', 30, 1, 1, 29, 40],
+  ['Numbers', 30, 2, 17, 30, 1],
+  ['Deuteronomy', 13, 1, 1, 12, 32],
+  ['Deuteronomy', 13, 2, 19, 13, 1],
+  ['Deuteronomy', 23, 1, 1, 22, 30],
+  ['Deuteronomy', 23, 2, 26, 23, 1],
+  ['Deuteronomy', 28, 69, 69, 29, 1],
+  ['Deuteronomy', 29, 1, 28, 29, 2]
+];
+
+const TORAH_VERSE_MAP = {};
+TORAH_VERSE_MAPPING_RULES.forEach(([book, sourceChapter, sourceStart, sourceEnd, targetChapter, targetStart]) => {
+  for (let sourceVerse = sourceStart; sourceVerse <= sourceEnd; sourceVerse++) {
+    TORAH_VERSE_MAP[`${book} ${sourceChapter}:${sourceVerse}`] = {
+      chapter: targetChapter,
+      verse: targetStart + sourceVerse - sourceStart
+    };
+  }
+});
+
+function mapTorahVerse(book, chapter, verse, isEnd) {
+  const mapped = TORAH_VERSE_MAP[`${book} ${chapter}:${verse}`];
+  if (mapped) return mapped;
+
+  // Hebcal's traditional Jewish numbering combines several commandments that
+  // KJV/KRV print as separate verses in these two chapters.
+  if (book === 'Exodus' && chapter === 20) {
+    if (verse === 13) return { chapter, verse: isEnd ? 16 : 13 };
+    if (verse >= 14) return { chapter, verse: verse + 3 };
+  }
+  if (book === 'Deuteronomy' && chapter === 5) {
+    if (verse === 18) return { chapter, verse: isEnd ? 21 : 18 };
+    if (verse >= 19) return { chapter, verse: verse + 3 };
+  }
+  return { chapter, verse };
+}
+
+function convertHebcalTorahReading(reading) {
+  if (!reading) return reading;
+  return reading.replace(
+    /^(Genesis|Exodus|Leviticus|Numbers|Deuteronomy)\s+(\d+):(\d+)-(\d+):(\d+)/,
+    (match, book, startChapter, startVerse, endChapter, endVerse) => {
+      const start = mapTorahVerse(book, Number(startChapter), Number(startVerse), false);
+      const end = mapTorahVerse(book, Number(endChapter), Number(endVerse), true);
+      return `${book} ${start.chapter}:${start.verse}-${end.chapter}:${end.verse}`;
+    }
+  );
+}
+
 /**
  * 유대력 독서 주기에 맞춘 통독 플랜을 생성합니다.
  * @param {Array} hebcalItems - Hebcal API에서 가져온 달력 아이템 배열
@@ -26,6 +86,7 @@ function generateHebrewYearPlan(hebcalItems, startDateStr, totalDays = 365) {
       holidays: [],
       parasha: null,
       torah: null,
+      torahCompletion: null,
       megillah: null,
       ot: [],
       nt: []
@@ -44,6 +105,9 @@ function generateHebrewYearPlan(hebcalItems, startDateStr, totalDays = 365) {
         hebrew: item.hebrew,
         memo: item.memo
       });
+      if (/simchat torah/i.test(item.title)) {
+        plan[item.date].torahCompletion = 'Deuteronomy 33:1-34:12';
+      }
     }
 
     if (item.category === 'parashat') {
@@ -74,7 +138,7 @@ function generateHebrewYearPlan(hebcalItems, startDateStr, totalDays = 365) {
       dayData.parasha = upcomingParasha.title.replace(/^Parashat\s+|^Parashas\s+/i, '');
       // 알리야 1~7을 일(0) ~ 토(6)에 배정 (UTC 요일 기준)
       const aliyahNum = dayOfWeek + 1;
-      dayData.torah = upcomingParasha.leyning[aliyahNum.toString()] || null;
+      dayData.torah = convertHebcalTorahReading(upcomingParasha.leyning[aliyahNum.toString()] || null);
     }
   });
 
@@ -115,7 +179,7 @@ function generateHebrewYearPlan(hebcalItems, startDateStr, totalDays = 365) {
       const dayData = plan[dStr];
       if (dayData.holidays) {
         for (const h of dayData.holidays) {
-          const name = h.name.toLowerCase();
+          const name = h.name.toLowerCase().replace(/[\u2018\u2019\u02BC]/g, "'");
           if (name.includes('pesach') || name.includes('passover')) {
             megillahType = 'Song';
             break;
@@ -124,7 +188,7 @@ function generateHebrewYearPlan(hebcalItems, startDateStr, totalDays = 365) {
             megillahType = 'Ruth';
             break;
           }
-          if (name.includes('tisha b\'av')) {
+          if (name.includes("tisha b'av") || name.includes("tish'a b'av")) {
             megillahType = 'Lam';
             break;
           }

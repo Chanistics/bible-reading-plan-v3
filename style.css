@@ -5064,6 +5064,323 @@ body.light-mode .parasha-modal-tabs button.active {
   background: #ffffff;
 }
 
+/* Weekly reading workspace */
+.weekly-workspace {
+  max-width: 1200px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: 1rem 0;
+}
+
+.weekly-workspace .weekly-progress-summary {
+  grid-template-columns: auto 80px auto;
+}
+
+.weekly-workspace .weekly-progress-track {
+  width: 80px;
+}
+
+.weekly-complete-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  color: var(--ink-strong);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.weekly-complete-control input {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  margin: 0;
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+
+.weekly-parasha-explanation {
+  border-bottom: 1px solid var(--line-soft);
+  padding: 0.6rem 0 1.2rem;
+  margin-bottom: 1.2rem;
+}
+
+.weekly-parasha-meaning {
+  color: var(--ink-strong);
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+#weekly-parasha-description {
+  max-width: 900px;
+}
+
+.weekly-torah-guide summary {
+  color: var(--gold);
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.5rem 0;
+}
+
+.weekly-torah-guide ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.7rem 1.5rem;
+  list-style: none;
+  padding: 0.5rem 0;
+}
+
+.weekly-torah-guide li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.82rem;
+  color: var(--ink-normal);
+}
+
+.weekly-torah-guide li span {
+  color: var(--ink-muted);
+  font-size: 0.73rem;
+}
+
+.weekly-days-scroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 0.65rem;
+  scrollbar-width: thin;
+}
+
+.weekly-workspace .weekly-schedule-list {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(134px, 1fr));
+  gap: 0.5rem;
+  scroll-margin-top: 5rem;
+}
+
+.weekly-workspace .schedule-day-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.8rem;
+  min-width: 0;
+  min-height: 172px;
+  padding: 0.75rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.weekly-workspace .schedule-day-row.active {
+  border-color: var(--gold);
+}
+
+.weekly-workspace .schedule-day-row.today:not(.active) {
+  border-color: #689fa6;
+}
+
+.weekly-workspace .sched-date-block {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.2rem;
+}
+
+.weekly-workspace .sched-calendar-date {
+  grid-column: 1;
+}
+
+.weekly-day-state {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  align-self: center;
+  color: var(--ink-muted);
+  font-size: 0.65rem;
+}
+
+.weekly-workspace .sched-day-readings {
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.weekly-workspace .sched-reading {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  border: 0;
+  padding: 0;
+}
+
+.weekly-workspace .sched-reading-text {
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.weekly-workspace .sched-reading-label {
+  font-size: 0.65rem;
+}
+
+body.light-mode .weekly-workspace .sched-reading.type-torah .sched-reading-label { color: #265f90; }
+body.light-mode .weekly-workspace .sched-reading.type-megillah .sched-reading-label { color: #744887; }
+body.light-mode .weekly-workspace .sched-reading.type-ot .sched-reading-label { color: #2d6b3a; }
+body.light-mode .weekly-workspace .sched-reading.type-nt .sched-reading-label { color: #a14b40; }
+
+.weekly-scripture-section {
+  max-width: 880px;
+  margin: 2rem auto 0;
+  min-width: 0;
+}
+
+.weekly-scripture-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.weekly-scripture-heading h4 {
+  font-size: 1.1rem;
+  color: var(--ink-strong);
+}
+
+.weekly-scripture-heading > span,
+.weekly-scripture-status {
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+}
+
+.weekly-scripture-status:not(:empty) {
+  padding: 2rem 0;
+}
+
+.weekly-scripture-day {
+  margin-top: 2rem;
+  scroll-margin-top: 5rem;
+}
+
+.weekly-scripture-day > h5 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 1rem;
+  color: var(--ink-strong);
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 0.75rem;
+}
+
+.weekly-scripture-day > h5 a {
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.weekly-scripture-passage {
+  margin: 1.25rem 0 2rem;
+}
+
+.weekly-scripture-passage h6 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--ink-strong);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.weekly-passage-label {
+  color: var(--gold);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.weekly-scripture-chapter {
+  margin: 1.2rem 0;
+}
+
+.weekly-chapter-title {
+  font-size: 0.82rem;
+  color: var(--gold);
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.weekly-scripture-verse {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.6rem 0.4rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-normal);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weekly-scripture-verse:hover,
+.weekly-scripture-verse:focus-visible {
+  background: var(--gold-dim);
+}
+
+.weekly-verse-number {
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 2.5;
+  color: var(--gold);
+}
+
+.weekly-verse-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.weekly-verse-korean {
+  font-size: 1rem;
+  line-height: 1.85;
+}
+
+.weekly-verse-english {
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+
+@media (max-width: 700px) {
+  .weekly-workspace .weekly-progress-summary {
+    grid-template-columns: minmax(0, 1fr) 80px;
+  }
+
+  .weekly-complete-control {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--line-soft);
+    padding-top: 0.4rem;
+  }
+
+  .weekly-workspace .weekly-schedule-list {
+    grid-template-columns: repeat(7, 150px);
+  }
+
+  .weekly-scripture-verse {
+    grid-template-columns: 20px minmax(0, 1fr);
+    padding-inline: 0;
+  }
+}
+
 /* Keep long and combined Torah portion names inside the calendar column. */
 .calendar-cell.torah-column-cell {
   min-width: 0;

@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="P274">
   
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@700;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=51">
+  <link rel="stylesheet" href="style.css?v=52">
   <link rel="icon" href="icon-192.png" type="image/png">
   <link rel="manifest" href="manifest.json">
 </head>
@@ -184,8 +184,7 @@
 
       <!-- Tab 3: 주간 보기 -->
       <div id="tab-content-weekly" class="tab-pane">
-        <div class="dashboard-single-column">
-          <div class="layout-right-card">
+        <div class="weekly-workspace">
             <div class="weekly-schedule-section">
               <div class="weekly-view-header">
                 <button id="btn-week-prev" class="btn-week-nav" type="button" aria-label="이전 주">‹</button>
@@ -204,13 +203,32 @@
                 <div class="weekly-progress-summary">
                   <span id="weekly-progress-text">0 / 7일 완료</span>
                   <div class="weekly-progress-track" aria-hidden="true"><span id="weekly-progress-bar"></span></div>
+                  <label class="weekly-complete-control">
+                    <input id="weekly-complete-checkbox" type="checkbox">
+                    <span>한 주 전체 완료</span>
+                  </label>
                 </div>
               </div>
+              <section class="weekly-parasha-explanation" aria-label="파라샤 배경과 의미">
+                <p id="weekly-parasha-meaning" class="weekly-parasha-meaning"></p>
+                <div id="weekly-parasha-description"></div>
+                <div id="weekly-torah-guide" class="weekly-torah-guide"></div>
+              </section>
+              <div class="weekly-days-scroll" tabindex="0" role="region" aria-label="일요일부터 토요일까지 읽기 목록">
               <div class="weekly-schedule-list" id="weekly-schedule-container">
                 <!-- 7 Days rendered here -->
               </div>
+              </div>
             </div>
-          </div>
+            <section class="weekly-scripture-section" aria-labelledby="weekly-scripture-title">
+              <div class="weekly-scripture-heading">
+                <h4 id="weekly-scripture-title">이번 주 전체 본문</h4>
+                <span>개역한글 · KJV</span>
+              </div>
+              <div id="weekly-scripture-status" class="weekly-scripture-status" role="status" aria-live="polite"></div>
+              <button id="btn-week-scripture-retry" class="btn-secondary hidden" type="button">다시 불러오기</button>
+              <div id="weekly-scripture-content"></div>
+            </section>
         </div>
       </div>
 
@@ -419,7 +437,7 @@
   <script src="hebcal.js"></script>
   <script src="generator.js?v=2"></script>
   <script src="original-language-data.js?v=1"></script>
-  <script src="app.js?v=61"></script>
+  <script src="app.js?v=62"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

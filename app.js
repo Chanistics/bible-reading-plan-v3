@@ -32,6 +32,7 @@ const annualViewFilters = {
   status: 'all',
   book: 'all'
 };
+const weeklyScriptureState = { key: null, requestId: 0, promise: null };
 
 function safeStorageGet(key) {
   try {
@@ -1189,6 +1190,26 @@ function setupScheduleViewActions() {
       renderDashboard();
     }
   });
+  document.getElementById('weekly-complete-checkbox').addEventListener('change', event => {
+    toggleWeekCompletion(activeDateStr, event.target.checked);
+  });
+  document.getElementById('btn-week-scripture-retry').addEventListener('click', () => {
+    loadWeeklyScripture(getWeekSummary(activeDateStr), true);
+  });
+  document.getElementById('weekly-scripture-content').addEventListener('click', async event => {
+    const verse = event.target.closest('.weekly-scripture-verse');
+    if (!verse) return;
+    const { book, chapter, verse: verseNumber } = verse.dataset;
+    await openBibleReader(`${book} ${chapter}장`, [{ book, chapter: Number(chapter) }]);
+    if (document.getElementById('bible-reader-modal').classList.contains('hidden')) return;
+    const row = Array.from(document.querySelectorAll('#bible-text-container .bible-verse-row')).find(item =>
+      item.dataset.book === book && item.dataset.chapter === chapter && item.dataset.verse === verseNumber
+    );
+    if (row) {
+      row.click();
+      row.scrollIntoView({ block: 'center' });
+    }
+  });
 
   document.querySelectorAll('[data-annual-status]').forEach(button => {
     button.addEventListener('click', () => {
@@ -1347,7 +1368,7 @@ function setupModalAccessibility() {
 }
 
 // 특정 일자의 모든 통독 항목 일괄 토글
-function toggleDayCompletion(dateStr, markComplete) {
+function setDayCompletion(dateStr, markComplete) {
   const dayData = currentPlan[dateStr];
   if (!dayData) return;
   
@@ -1367,6 +1388,20 @@ function toggleDayCompletion(dateStr, markComplete) {
     if (dayData.nt && dayData.nt.length > 0) appState.progress[dateStr].nt = false;
   }
   
+}
+
+function toggleDayCompletion(dateStr, markComplete) {
+  setDayCompletion(dateStr, markComplete);
+  saveAppState();
+  renderDashboard();
+}
+
+function setWeekCompletion(dateStr, markComplete) {
+  getWeekDates(dateStr).filter(date => currentPlan[date]).forEach(date => setDayCompletion(date, markComplete));
+}
+
+function toggleWeekCompletion(dateStr, markComplete) {
+  setWeekCompletion(dateStr, markComplete);
   saveAppState();
   renderDashboard();
 }
@@ -1453,6 +1488,84 @@ function renderTodayTorahGuide(dateStr) {
   openButton.onclick = () => openParashaDetailModal(summary.dates, summary.parasha, 'guide');
 }
 
+function getParashaExplanationHtml(pName, todayPlan) {
+  const meta = window.getParashaMeta(pName);
+  let detailHtml = '';
+
+  detailHtml += `<div style="margin-bottom: 0.75rem;">
+    <strong style="color: var(--gold);">히브리어: </strong>
+    <span style="font-size: 1.1rem; font-family: 'Noto Sans KR', sans-serif; font-weight: 500;">${meta.he || '-'}</span>
+  </div>`;
+
+  const pDetail = getParashaDetail(pName);
+  if (pDetail) {
+    detailHtml += `<div style="margin-bottom: 1rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.75rem;">
+      <strong style="color: var(--gold); display: block; margin-bottom: 0.25rem;">📖 파라샤 배경과 의미</strong>
+      <div style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted); margin: 0; word-break: keep-all;">${pDetail}</div>
+    </div>`;
+  }
+
+  let activeBiblicalHoliday = null;
+  if (todayPlan.holidays && todayPlan.holidays.length > 0) {
+    for (const h of todayPlan.holidays) {
+      if (getBiblicalHolidayName(h.name)) {
+        activeBiblicalHoliday = h.name;
+        break;
+      }
+    }
+  }
+
+  if (activeBiblicalHoliday) {
+    const holidayRule = getBiblicalHolidayRule(activeBiblicalHoliday);
+    const holidayKey = holidayRule ? holidayRule.key : null;
+
+    const BIBLICAL_HOLIDAYS_DETAIL = {
+      'Pesach Sheni': {
+        name: '두 번째 유월절 (Pesach Sheni)',
+        desc: '<strong>성경적 배경:</strong> 시체로 인해 부정해졌거나 먼 길에 있어 정한 때에 유월절을 지키지 못한 사람에게, 하나님께서 둘째 달 14일에 유월절을 지킬 기회를 허락하셨습니다(민 9:6-14).<br><br><strong>구분:</strong> 정규 유월절이 다시 8일 동안 반복되는 것이 아니라, 첫 유월절을 지키지 못한 사람을 위한 한 달 뒤의 보충일입니다.'
+      },
+      'Pesach': {
+        name: '유월절 (Pesach / Passover)',
+        desc: '<strong>성경적 배경:</strong> 애굽의 종살이에서 이스라엘을 구원하기 위해 열 번째 재앙(장자의 죽음)을 내리실 때, 어린 양의 피를 문설주에 바른 집은 죽음의 재앙이 "넘어갔던(Passover)" 것에서 유래합니다(출 12장).<br><br><strong>문화와 의미:</strong> 누룩 없는 빵인 무교병을 먹으며 고난을 기억하고 자유의 기쁨을 선포합니다. 신약 성경에서는 예수 그리스도를 세상 죄를 지고 가는 유월절 어린 양의 실체로 해석합니다(고전 5:7).'
+      },
+      'Shavuot': {
+        name: '칠칠절 / 오순절 (Shavuot / Pentecost)',
+        desc: '<strong>성경적 배경:</strong> 유월절 다음 날부터 7주를 센 후(49일) 50일째 되는 날에 드리는 절기입니다(레 23:15-21). 시내산에서 모세가 토라(율법)를 받은 날로 전통적으로 기억됩니다.<br><br><strong>문화와 의미:</strong> 첫 열매를 바치는 수확의 기쁨과 토라의 계시를 축하합니다. 신약 시대에는 바로 이 날에 사도들에게 성령이 임하여(행 2장) 신약 교회의 탄생을 알리는 성령 강림의 날로 완성되었습니다.'
+      },
+      'Rosh Hashana': {
+        name: '나팔절 (Rosh Hashana / Yom Teruah)',
+        desc: '<strong>성경적 배경:</strong> 유대 종교력 7월 1일에 숫양의 뿔나팔(쇼파르)을 크게 불어 회중을 소집하는 날입니다(레 23:23-25).<br><br><strong>문화와 의미:</strong> 창조주 하나님의 왕권을 선포하고 한 해 동안 지은 죄를 돌아보는 회개의 10일을 시작하는 신호입니다. 영적으로는 마지막 날 주님의 재림과 심판, 그리고 성도의 부활을 알리는 나팔 소리를 예표합니다.'
+      },
+      'Yom Kippur': {
+        name: '대속죄일 (Yom Kippur / Day of Atonement)',
+        desc: '<strong>성경적 배경:</strong> 일 년 중 단 하루, 대제사장이 이스라엘 온 회중의 죄를 속하기 위해 지성소에 들어가는 날입니다(레 16장, 23:26-32).<br><br><strong>문화와 의미:</strong> 하루 동안 금식하며 스스로를 괴롭게 하여 온전한 회개와 죄 사함을 간구합니다. 히브리서에서는 단번에 자기 피로 하늘의 참 지성소에 들어가 영원한 속죄를 이루신 예수 그리스도의 구속 사역으로 설명합니다.'
+      },
+      'Sukkot': {
+        name: '초막절 / 장막절 (Sukkot / Tabernacles)',
+        desc: '<strong>성경적 배경:</strong> 출애굽 후 40년간 광야 생활을 하는 동안 하나님께서 이스라엘을 초막 속에서 보호하시고 인도하셨음을 기억하며 지키는 가을 절기입니다(레 23:33-43).<br><br><strong>문화와 의미:</strong> 나뭇가지로 야외에 초막을 지어 거주하며 수확물(수장절)을 주신 하나님께 감사하고, 장차 하나님의 장막이 이 땅에 임하여 만국이 주님과 함께 영원히 거하게 될 메시아 왕국의 완성(계 21:3)을 상징합니다.'
+      },
+      'Shmini Atzeret / Simchat Torah': {
+        name: '쉐미니 아쩨렛 · 심하트 토라',
+        desc: '<strong>성경적 배경:</strong> 이스라엘에서는 초막절 다음 날인 티슈리월 22일에 쉐미니 아쩨렛과 심하트 토라를 함께 지킵니다(레 23:36).<br><br><strong>문화와 의미:</strong> 거룩한 성회로 모이는 동시에 모세오경의 마지막을 읽고 창세기 첫 부분으로 돌아가 새 토라 주기를 시작합니다.'
+      },
+      'Purim': {
+        name: '부림절 (Purim)',
+        desc: '<strong>성경적 배경:</strong> 페르시아 제국 시절, 유대 민족을 말살하려던 악한 하만의 음모에 맞서 에스더 왕비의 믿음의 결단과 모르드개의 지혜로 인해 구원을 얻은 날을 기념합니다(에스더 9장).<br><br><strong>문화와 의미:</strong> 하만이 제비(부르)를 던졌던 것에서 이름이 유래했습니다. 에스더서를 낭독하며 하만의 이름이 나올 때마다 소리를 지르고, 가난한 자들을 구제하며 기쁨을 나눕니다.'
+      }
+    };
+
+    const holDetail = BIBLICAL_HOLIDAYS_DETAIL[holidayKey];
+    if (holDetail) {
+      detailHtml += `<div style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.75rem;">
+        <strong style="color: var(--gold); display: block; margin-bottom: 0.25rem;">✨ 절기 배경: ${holDetail.name}</strong>
+        <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted); margin: 0; word-break: keep-all;">${holDetail.desc}</p>
+      </div>`;
+    }
+  }
+
+  return detailHtml;
+}
+
 function renderWeeklySchedule(todayStr, days) {
   const summary = getWeekSummary(activeDateStr);
   const totalWeeks = Math.max(...getPlanDates().map(getPlanWeekNumber));
@@ -1469,6 +1582,25 @@ function renderWeeklySchedule(todayStr, days) {
   document.getElementById('weekly-date-range').textContent = formatPlanDateRange(summary.dates);
   document.getElementById('weekly-progress-text').textContent = `${summary.completedDays} / ${summary.totalDays}일 완료`;
   document.getElementById('weekly-progress-bar').style.width = `${summary.percentage}%`;
+  const completeCheckbox = document.getElementById('weekly-complete-checkbox');
+  completeCheckbox.checked = summary.completedDays === summary.totalDays;
+  completeCheckbox.indeterminate = !completeCheckbox.checked && summary.dates.some(date => {
+    const day = currentPlan[date];
+    return ['torah', 'torahCompletion', 'megillah', 'ot', 'nt'].some(field =>
+      (Array.isArray(day[field]) ? day[field].length > 0 : !!day[field]) && appState.progress[date]?.[field]
+    );
+  });
+  document.getElementById('weekly-parasha-meaning').textContent = summary.parasha === 'Special Week' ? '절기 특별 본문' : meta.meaning;
+  document.getElementById('weekly-parasha-description').innerHTML = getParashaExplanationHtml(summary.parasha, {
+    holidays: summary.dates.flatMap(date => currentPlan[date].holidays || [])
+  });
+  const guide = document.getElementById('weekly-torah-guide');
+  const guideStages = getTorahGuideStagesForWeek(summary.dates);
+  const guideOpen = guide.querySelector('details')?.open || false;
+  guide.innerHTML = guideStages.length ? `<details${guideOpen ? ' open' : ''}>
+    <summary>탐구 주제 · ${guideStages.length}</summary>
+    <ul>${guideStages.map(stage => `<li><strong>${escapeHtml(stage.title)}</strong><span>${escapeHtml(stage.reference)}</span></li>`).join('')}</ul>
+  </details>` : '';
 
   const holidayList = document.getElementById('weekly-holiday-list');
   holidayList.replaceChildren();
@@ -1499,7 +1631,6 @@ function renderWeeklySchedule(todayStr, days) {
     const [year, month, day] = dateStr.split('-').map(Number);
     const date = new Date(Date.UTC(year, month - 1, day));
     const dayName = days[date.getUTCDay()];
-    const dayNumber = getPlanDayNumber(dateStr);
     const isToday = dateStr === todayStr;
     const isActive = dateStr === activeDateStr;
     const isCompleted = isDayCompleted(dayData, appState.progress[dateStr] || {});
@@ -1515,31 +1646,117 @@ function renderWeeklySchedule(todayStr, days) {
     if (dayData.ot && dayData.ot.length) addReading('ot', '구약', formatReadingRange(dayData.ot));
     if (dayData.nt && dayData.nt.length) addReading('nt', '신약', formatReadingRange(dayData.nt));
 
-    const row = document.createElement('div');
+    const row = document.createElement('button');
+    row.type = 'button';
     row.className = `schedule-day-row${isActive ? ' active' : ''}${isToday ? ' today' : ''}${isCompleted ? ' completed' : ''}`;
+    row.dataset.date = dateStr;
+    row.setAttribute('aria-label', `${month}월 ${day}일 본문으로 이동${isCompleted ? ', 완료' : ''}`);
+    row.setAttribute('aria-pressed', String(isActive));
     row.innerHTML = `
-      <button class="sched-chk-box" type="button" aria-label="${month}월 ${day}일 통독 ${isCompleted ? '완료 취소' : '완료'}" aria-pressed="${isCompleted}"></button>
-      <button class="sched-info" type="button" aria-label="${month}월 ${day}일 일정 선택">
         <span class="sched-date-block">
           <span class="sched-weekday">${dayName}</span>
           <span class="sched-calendar-date">${month}.${day}</span>
-          <span class="sched-day-count">${dayNumber}일차</span>
+          <span class="weekly-day-state">${isCompleted ? '완료' : isToday ? '오늘' : ''}</span>
         </span>
-        <span class="sched-day-content">
-          <span class="sched-day-title">${isToday ? '<span class="sched-day-badge">오늘</span>' : ''}${isActive && !isToday ? '<span class="sched-day-badge selected">선택</span>' : ''}</span>
-          <span class="sched-day-readings">${readings.join('')}</span>
-        </span>
-      </button>`;
+        <span class="sched-day-readings">${readings.join('')}</span>`;
 
-    row.querySelector('.sched-chk-box').addEventListener('click', () => {
-      toggleDayCompletion(dateStr, !isCompleted);
-    });
-    row.querySelector('.sched-info').addEventListener('click', () => {
+    row.addEventListener('click', async () => {
       activeDateStr = dateStr;
       renderDashboard();
+      await loadWeeklyScripture(summary);
+      if (!document.getElementById('tab-content-weekly').classList.contains('active') || activeDateStr !== dateStr) return;
+      document.getElementById(`weekly-scripture-${dateStr}`)?.scrollIntoView({ behavior: 'instant', block: 'start' });
     });
     scheduleContainer.appendChild(row);
   });
+  if (document.getElementById('tab-content-weekly').classList.contains('active')) loadWeeklyScripture(summary);
+}
+
+function getWeeklyReadingGroups(dateStr, plan = currentPlan) {
+  const day = plan[dateStr];
+  if (!day) return [];
+  const groups = [];
+  const add = (type, label, reading) => {
+    if (!reading || (Array.isArray(reading) && !reading.length)) return;
+    const title = Array.isArray(reading) ? formatReadingRange(reading) : window.BIBLE_DATA.translateTorahReading(reading);
+    let chapters;
+    if (Array.isArray(reading)) {
+      chapters = reading.map(item => ({ book: item.book, chapter: item.chapter, startVerse: 1, endVerse: null }));
+    } else {
+      const ref = parseKoreanReference(title);
+      if (!ref || !Number.isInteger(ref.startCh) || !Number.isInteger(ref.endCh) || ref.endCh < ref.startCh) {
+        throw new Error(`Invalid weekly reading: ${title}`);
+      }
+      chapters = Array.from({ length: ref.endCh - ref.startCh + 1 }, (_, index) => {
+        const chapter = ref.startCh + index;
+        return { book: ref.bookName, chapter, startVerse: chapter === ref.startCh ? ref.startVs || 1 : 1, endVerse: chapter === ref.endCh ? ref.endVs || null : null };
+      });
+    }
+    groups.push({ type, label, title, chapters });
+  };
+  add('torah', '토라포션', day.torah);
+  add('torahCompletion', '토라 완독', day.torahCompletion);
+  add('megillah', '메길롯', day.megillah);
+  add('ot', '구약 성경', day.ot);
+  add('nt', '신약 성경', day.nt);
+  return groups;
+}
+
+function loadWeeklyScripture(summary, force = false) {
+  const key = JSON.stringify(summary.dates.map(date => currentPlan[date]));
+  if (!force && weeklyScriptureState.key === key) return weeklyScriptureState.promise;
+  const requestId = ++weeklyScriptureState.requestId;
+  weeklyScriptureState.key = key;
+  const content = document.getElementById('weekly-scripture-content');
+  const status = document.getElementById('weekly-scripture-status');
+  const retry = document.getElementById('btn-week-scripture-retry');
+  content.replaceChildren();
+  content.setAttribute('aria-busy', 'true');
+  status.textContent = '이번 주 본문을 불러오고 있습니다.';
+  retry.classList.add('hidden');
+
+  weeklyScriptureState.promise = (async () => {
+    try {
+      const days = summary.dates.map(date => ({ date, groups: getWeeklyReadingGroups(date) }));
+      const chapterPromises = new Map();
+      days.forEach(day => day.groups.forEach(group => group.chapters.forEach(({ book, chapter }) => {
+        const chapterKey = `${book} ${chapter}`;
+        if (!chapterPromises.has(chapterKey)) chapterPromises.set(chapterKey, fetchBibleChapterPair(getBookNumber(book), chapter, book));
+      })));
+      const loaded = await Promise.all(Array.from(chapterPromises, async ([chapterKey, promise]) => [chapterKey, await promise]));
+      if (requestId !== weeklyScriptureState.requestId) return;
+      const chapters = new Map(loaded);
+      content.innerHTML = days.map(day => `<section class="weekly-scripture-day" id="weekly-scripture-${day.date}" data-date="${day.date}">
+        <h5><span>${escapeHtml(formatDateWithWeekday(day.date))}</span><a href="#weekly-schedule-container">주간 목록</a></h5>
+        ${day.groups.map(group => `<section class="weekly-scripture-passage" data-type="${group.type}">
+          <h6><span class="weekly-passage-label type-${group.type}">${group.label}</span>${escapeHtml(group.title)}</h6>
+          ${group.chapters.map(range => {
+            const chapter = chapters.get(`${range.book} ${range.chapter}`);
+            const verses = chapter.verses.filter(verse => verse.verse >= range.startVerse && (range.endVerse === null || verse.verse <= range.endVerse));
+            return `<div class="weekly-scripture-chapter"><p class="weekly-chapter-title">${escapeHtml(range.book)} ${range.chapter}장</p>
+              ${verses.map(verse => {
+                const kjv = chapter.__kjvVersesByNumber[verse.verse] || '';
+                return `<button class="weekly-scripture-verse" type="button" data-book="${escapeHtml(range.book)}" data-chapter="${range.chapter}" data-verse="${verse.verse}" aria-label="${escapeHtml(range.book)} ${range.chapter}장 ${verse.verse}절 원어 해설">
+                  <span class="weekly-verse-number">${verse.verse}</span><span class="weekly-verse-lines">
+                    ${verse.text ? `<span class="weekly-verse-korean">${escapeHtml(verse.text)}</span>` : ''}
+                    ${kjv ? `<span class="weekly-verse-english" lang="en">${escapeHtml(kjv)}</span>` : ''}
+                  </span></button>`;
+              }).join('')}
+            </div>`;
+          }).join('')}
+        </section>`).join('')}
+      </section>`).join('');
+      status.textContent = '';
+    } catch (error) {
+      if (requestId !== weeklyScriptureState.requestId) return;
+      console.error('Weekly scripture could not be loaded.', error);
+      status.textContent = '이번 주 본문을 불러오지 못했습니다. 다시 시도해주세요.';
+      retry.classList.remove('hidden');
+    } finally {
+      if (requestId === weeklyScriptureState.requestId) content.setAttribute('aria-busy', 'false');
+    }
+  })();
+  return weeklyScriptureState.promise;
 }
 
 // 2. 대시보드 (오늘 읽기) 렌더링
@@ -1672,80 +1889,7 @@ async function renderDashboard() {
     
     // 상세 문화/성경 설명 바인딩
     const detailBox = document.getElementById('parasha-meaning-box-new');
-    let detailHtml = '';
-
-    detailHtml += `<div style="margin-bottom: 0.75rem;">
-      <strong style="color: var(--gold);">히브리어: </strong>
-      <span style="font-size: 1.1rem; font-family: 'Noto Sans KR', sans-serif; font-weight: 500;">${meta.he || '-'}</span>
-    </div>`;
-
-    const pDetail = getParashaDetail(pName);
-    if (pDetail) {
-      detailHtml += `<div style="margin-bottom: 1rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.75rem;">
-        <strong style="color: var(--gold); display: block; margin-bottom: 0.25rem;">📖 파라샤 배경과 의미</strong>
-        <div style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted); margin: 0; word-break: keep-all;">${pDetail}</div>
-      </div>`;
-    }
-
-    let activeBiblicalHoliday = null;
-    if (todayPlan.holidays && todayPlan.holidays.length > 0) {
-      for (const h of todayPlan.holidays) {
-        if (getBiblicalHolidayName(h.name)) {
-          activeBiblicalHoliday = h.name;
-          break;
-        }
-      }
-    }
-
-    if (activeBiblicalHoliday) {
-      const holidayRule = getBiblicalHolidayRule(activeBiblicalHoliday);
-      const holidayKey = holidayRule ? holidayRule.key : null;
-
-      const BIBLICAL_HOLIDAYS_DETAIL = {
-        'Pesach Sheni': {
-          name: '두 번째 유월절 (Pesach Sheni)',
-          desc: '<strong>성경적 배경:</strong> 시체로 인해 부정해졌거나 먼 길에 있어 정한 때에 유월절을 지키지 못한 사람에게, 하나님께서 둘째 달 14일에 유월절을 지킬 기회를 허락하셨습니다(민 9:6-14).<br><br><strong>구분:</strong> 정규 유월절이 다시 8일 동안 반복되는 것이 아니라, 첫 유월절을 지키지 못한 사람을 위한 한 달 뒤의 보충일입니다.'
-        },
-        'Pesach': {
-          name: '유월절 (Pesach / Passover)',
-          desc: '<strong>성경적 배경:</strong> 애굽의 종살이에서 이스라엘을 구원하기 위해 열 번째 재앙(장자의 죽음)을 내리실 때, 어린 양의 피를 문설주에 바른 집은 죽음의 재앙이 "넘어갔던(Passover)" 것에서 유래합니다(출 12장).<br><br><strong>문화와 의미:</strong> 누룩 없는 빵인 무교병을 먹으며 고난을 기억하고 자유의 기쁨을 선포합니다. 신약 성경에서는 예수 그리스도를 세상 죄를 지고 가는 유월절 어린 양의 실체로 해석합니다(고전 5:7).'
-        },
-        'Shavuot': {
-          name: '칠칠절 / 오순절 (Shavuot / Pentecost)',
-          desc: '<strong>성경적 배경:</strong> 유월절 다음 날부터 7주를 센 후(49일) 50일째 되는 날에 드리는 절기입니다(레 23:15-21). 시내산에서 모세가 토라(율법)를 받은 날로 전통적으로 기억됩니다.<br><br><strong>문화와 의미:</strong> 첫 열매를 바치는 수확의 기쁨과 토라의 계시를 축하합니다. 신약 시대에는 바로 이 날에 사도들에게 성령이 임하여(행 2장) 신약 교회의 탄생을 알리는 성령 강림의 날로 완성되었습니다.'
-        },
-        'Rosh Hashana': {
-          name: '나팔절 (Rosh Hashana / Yom Teruah)',
-          desc: '<strong>성경적 배경:</strong> 유대 종교력 7월 1일에 숫양의 뿔나팔(쇼파르)을 크게 불어 회중을 소집하는 날입니다(레 23:23-25).<br><br><strong>문화와 의미:</strong> 창조주 하나님의 왕권을 선포하고 한 해 동안 지은 죄를 돌아보는 회개의 10일을 시작하는 신호입니다. 영적으로는 마지막 날 주님의 재림과 심판, 그리고 성도의 부활을 알리는 나팔 소리를 예표합니다.'
-        },
-        'Yom Kippur': {
-          name: '대속죄일 (Yom Kippur / Day of Atonement)',
-          desc: '<strong>성경적 배경:</strong> 일 년 중 단 하루, 대제사장이 이스라엘 온 회중의 죄를 속하기 위해 지성소에 들어가는 날입니다(레 16장, 23:26-32).<br><br><strong>문화와 의미:</strong> 하루 동안 금식하며 스스로를 괴롭게 하여 온전한 회개와 죄 사함을 간구합니다. 히브리서에서는 단번에 자기 피로 하늘의 참 지성소에 들어가 영원한 속죄를 이루신 예수 그리스도의 구속 사역으로 설명합니다.'
-        },
-        'Sukkot': {
-          name: '초막절 / 장막절 (Sukkot / Tabernacles)',
-          desc: '<strong>성경적 배경:</strong> 출애굽 후 40년간 광야 생활을 하는 동안 하나님께서 이스라엘을 초막 속에서 보호하시고 인도하셨음을 기억하며 지키는 가을 절기입니다(레 23:33-43).<br><br><strong>문화와 의미:</strong> 나뭇가지로 야외에 초막을 지어 거주하며 수확물(수장절)을 주신 하나님께 감사하고, 장차 하나님의 장막이 이 땅에 임하여 만국이 주님과 함께 영원히 거하게 될 메시아 왕국의 완성(계 21:3)을 상징합니다.'
-        },
-        'Shmini Atzeret / Simchat Torah': {
-          name: '쉐미니 아쩨렛 · 심하트 토라',
-          desc: '<strong>성경적 배경:</strong> 이스라엘에서는 초막절 다음 날인 티슈리월 22일에 쉐미니 아쩨렛과 심하트 토라를 함께 지킵니다(레 23:36).<br><br><strong>문화와 의미:</strong> 거룩한 성회로 모이는 동시에 모세오경의 마지막을 읽고 창세기 첫 부분으로 돌아가 새 토라 주기를 시작합니다.'
-        },
-        'Purim': {
-          name: '부림절 (Purim)',
-          desc: '<strong>성경적 배경:</strong> 페르시아 제국 시절, 유대 민족을 말살하려던 악한 하만의 음모에 맞서 에스더 왕비의 믿음의 결단과 모르드개의 지혜로 인해 구원을 얻은 날을 기념합니다(에스더 9장).<br><br><strong>문화와 의미:</strong> 하만이 제비(부르)를 던졌던 것에서 이름이 유래했습니다. 에스더서를 낭독하며 하만의 이름이 나올 때마다 소리를 지르고, 가난한 자들을 구제하며 기쁨을 나눕니다.'
-        }
-      };
-
-      const holDetail = BIBLICAL_HOLIDAYS_DETAIL[holidayKey];
-      if (holDetail) {
-        detailHtml += `<div style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.75rem;">
-          <strong style="color: var(--gold); display: block; margin-bottom: 0.25rem;">✨ 절기 배경: ${holDetail.name}</strong>
-          <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted); margin: 0; word-break: keep-all;">${holDetail.desc}</p>
-        </div>`;
-      }
-    }
-
-    detailBox.innerHTML = detailHtml;
+    detailBox.innerHTML = getParashaExplanationHtml(pName, todayPlan);
   }
 
   renderTodayTorahGuide(todayStr);

@@ -1159,6 +1159,12 @@ function setupTabs() {
       closeAccessibleModal(document.getElementById('bible-reader-modal'));
     }
   });
+
+  const originalModal = document.getElementById('original-language-modal');
+  document.getElementById('btn-close-original').addEventListener('click', () => closeAccessibleModal(originalModal));
+  originalModal.addEventListener('click', event => {
+    if (event.target === originalModal) closeAccessibleModal(originalModal);
+  });
 }
 
 function shiftDateByDays(dateStr, days) {
@@ -1193,6 +1199,13 @@ function setupScheduleViewActions() {
   document.getElementById('btn-week-complete').addEventListener('click', () => {
     const summary = getWeekSummary(activeDateStr);
     toggleWeekCompletion(activeDateStr, summary.completedDays !== summary.totalDays);
+  });
+  document.getElementById('weekly-schedule-container').addEventListener('click', event => {
+    const button = event.target.closest('[data-reading-type]');
+    if (!button) return;
+    const date = button.closest('.schedule-day-row').dataset.date;
+    const group = getWeeklyReadingGroups(date).find(item => item.type === button.dataset.readingType);
+    if (group) openBibleReader(group.title, group.passageData);
   });
 
   document.querySelectorAll('[data-annual-status]').forEach(button => {
@@ -1311,21 +1324,33 @@ function focusAccessibleModal(modal) {
     modalFocusOrigins.set(modal, document.activeElement);
   }
   requestAnimationFrame(() => {
+    if (modal.classList.contains('hidden') || modal.inert) return;
     const target = modal.querySelector('.btn-close, button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
     if (target) target.focus({ preventScroll: true });
   });
 }
 
 function closeAccessibleModal(modal) {
-  if (!modal) return;
+  if (!modal || modal.classList.contains('hidden')) return;
+  if (modal.id === 'bible-reader-modal') {
+    ++bibleReaderRequestId;
+    closeAccessibleModal(document.getElementById('original-language-modal'));
+  }
   modal.classList.add('hidden');
+  if (modal.id === 'original-language-modal') {
+    ++originalPanelRequestId;
+    document.getElementById('bible-reader-modal').inert = false;
+    const panel = document.getElementById('original-language-panel');
+    panel.replaceChildren();
+    panel.removeAttribute('aria-busy');
+  }
   const origin = modalFocusOrigins.get(modal);
   if (origin && origin.isConnected) origin.focus({ preventScroll: true });
 }
 
 function setupModalAccessibility() {
   document.addEventListener('keydown', event => {
-    const openModals = Array.from(document.querySelectorAll('.modal-overlay:not(.hidden)'));
+    const openModals = Array.from(document.querySelectorAll('.modal-overlay:not(.hidden):not([inert])'));
     const modal = openModals[openModals.length - 1];
     if (!modal) return;
 
@@ -1336,7 +1361,7 @@ function setupModalAccessibility() {
     }
     if (event.key !== 'Tab') return;
 
-    const focusable = Array.from(modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+    const focusable = Array.from(modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'))
       .filter(element => element.offsetParent !== null);
     if (!focusable.length) return;
     const first = focusable[0];
@@ -1624,10 +1649,11 @@ function renderWeeklySchedule(todayStr, days) {
 
     const addReading = (type, label, reading) => {
       if (!reading) return;
-      readings.push(`<span class="sched-reading type-${type}"><span class="sched-reading-label">${label}</span><span class="sched-reading-text">${escapeHtml(abbreviateReading(reading))}</span></span>`);
+      const visualType = type === 'torahCompletion' ? 'torah' : type;
+      readings.push(`<button type="button" class="sched-reading type-${visualType}" data-reading-type="${type}" aria-label="${month}월 ${day}일 ${label}, ${escapeHtml(reading)}, 본문 읽기"><span class="sched-reading-label">${label}</span><span class="sched-reading-text">${escapeHtml(abbreviateReading(reading))}</span></button>`);
     };
     if (dayData.torah) addReading('torah', '토라', window.BIBLE_DATA.translateTorahReading(dayData.torah));
-    if (dayData.torahCompletion) addReading('torah', '토라 완독', window.BIBLE_DATA.translateTorahReading(dayData.torahCompletion));
+    if (dayData.torahCompletion) addReading('torahCompletion', '토라 완독', window.BIBLE_DATA.translateTorahReading(dayData.torahCompletion));
     if (dayData.megillah) addReading('megillah', '메길롯', dayData.megillah);
     if (dayData.ot && dayData.ot.length) addReading('ot', '구약', formatReadingRange(dayData.ot));
     if (dayData.nt && dayData.nt.length) addReading('nt', '신약', formatReadingRange(dayData.nt));
@@ -1668,7 +1694,7 @@ function getWeeklyReadingGroups(dateStr, plan = currentPlan) {
         return { book: ref.bookName, chapter, startVerse: chapter === ref.startCh ? ref.startVs || 1 : 1, endVerse: chapter === ref.endCh ? ref.endVs || null : null };
       });
     }
-    groups.push({ type, label, title, chapters });
+    groups.push({ type, label, title, chapters, passageData: Array.isArray(reading) ? reading : title });
   };
   add('torah', '토라포션', day.torah);
   add('torahCompletion', '토라 완독', day.torahCompletion);
@@ -3649,7 +3675,9 @@ function restoreBibleReaderAfterReturn() {
 
 async function renderOriginalLanguagePanel(bookName, chapter, verse) {
   const panel = document.getElementById('original-language-panel');
-  if (!panel) return;
+  const modal = document.getElementById('original-language-modal');
+  const reader = document.getElementById('bible-reader-modal');
+  if (!panel || !modal || reader.classList.contains('hidden')) return;
   const requestId = ++originalPanelRequestId;
 
   const key = normalizeVerseRefKey(bookName, chapter, verse);
@@ -3662,155 +3690,157 @@ async function renderOriginalLanguagePanel(bookName, chapter, verse) {
     row.classList.toggle('active', row.dataset.refKey === key);
   });
 
-  panel.classList.remove('hidden');
+  document.getElementById('original-language-title').textContent = `${key} 원어 해설`;
+  if (modal.classList.contains('hidden')) {
+    modal.classList.remove('hidden');
+    focusAccessibleModal(modal);
+  }
+  const selectedVerse = reader.querySelector('.bible-verse-row.active');
+  if (selectedVerse) modalFocusOrigins.set(modal, selectedVerse);
+  reader.inert = true;
+  panel.scrollTop = 0;
+  panel.setAttribute('aria-busy', 'true');
   panel.innerHTML = `
-    <div class="original-panel-loading">
+    <div class="original-panel-loading" role="status">
       <div class="spinner"></div>
       <div>원어 데이터를 불러오고 있습니다...</div>
     </div>
   `;
 
-  const result = await getOriginalLanguageEntry(bookName, chapter, verse);
-  if (requestId !== originalPanelRequestId) return;
-  const entry = result.entry;
+  try {
+    const result = await getOriginalLanguageEntry(bookName, chapter, verse);
+    if (requestId !== originalPanelRequestId) return;
+    const entry = result.entry;
 
-  if (!entry || !entry.words || entry.words.length === 0) {
+    if (!entry || !entry.words || entry.words.length === 0) {
+      panel.innerHTML = `
+        ${verseGuideHtml}
+        <div class="original-panel-missing">
+          <strong>${result.missingReason ? '대응하는 BHSA 원문 절 없음' : '원어 데이터 없음'}</strong>
+          <p>${escapeHtml(result.missingReason || '원어 데이터 파일을 읽지 못했습니다. 앱의 original-data 폴더가 함께 있는지 확인해주세요.')}</p>
+          <span>구약은 OpenHebrewBible의 KJV 절 번호 매핑, 신약은 TRx/KJV1769x Strong 매핑 기준입니다.</span>
+        </div>
+      `;
+      return;
+    }
+
+    const languageLabel = entry.languageLabel || (entry.language === 'hebrew' ? '히브리어' : '헬라어');
+    if (entry.language === 'hebrew') {
+      await loadHebrewLexicon();
+    } else if (entry.language === 'greek') {
+      await loadGreekLexicon();
+    }
+    if (requestId !== originalPanelRequestId) return;
+    const kjv1769StrongBookData = await loadKjv1769StrongBookData(bookName);
+    if (requestId !== originalPanelRequestId) return;
+    const kjvVerseData = kjv1769StrongBookData && kjv1769StrongBookData.verses
+      ? (kjv1769StrongBookData.verses[`${Number(chapter)}:${Number(verse)}`] || null)
+      : null;
+    const kjvStrongItems = Array.isArray(kjvVerseData)
+      ? kjvVerseData
+      : (kjvVerseData && Array.isArray(kjvVerseData.words) ? kjvVerseData.words : []);
+    const verseStrongOccurrences = {};
+    const sentenceKjvPhrases = [];
+    const wordCards = entry.words.map((word, index) => {
+      const lexiconEntry = ['hebrew', 'greek'].includes(entry.language) ? getOriginalLexiconEntry(word) : null;
+      const displayStrong = normalizeStrongKey(word.strong) || word.strong || '-';
+      const normalizedStrong = normalizeStrongKey(word.strong);
+      if (normalizedStrong) verseStrongOccurrences[normalizedStrong] = (verseStrongOccurrences[normalizedStrong] || 0) + 1;
+      const alignmentWord = {
+        ...word,
+        strongOccurrence: Number(word.strongOccurrence) || verseStrongOccurrences[normalizedStrong] || 1
+      };
+      const pronunciation = ['hebrew', 'greek'].includes(entry.language)
+        ? getLexiconPronunciationEn(lexiconEntry, word)
+        : word.transliteration;
+      const kjvMatch = getKjvAlignmentMatch(alignmentWord, kjvStrongItems);
+      const exactKjvPhrase = (kjvMatch && kjvMatch.phrase) || '';
+      sentenceKjvPhrases[index] = exactKjvPhrase;
+      return `
+        <div class="original-word-card" tabindex="0">
+          <div class="original-word-main">
+            <span class="original-script ${entry.language === 'hebrew' ? 'rtl' : ''}" dir="${entry.language === 'hebrew' ? 'rtl' : 'ltr'}">${escapeHtml(word.original)}</span>
+            <span class="original-word-head-right">
+              ${renderStrongCodeLink(displayStrong)}
+            </span>
+          </div>
+          <div class="original-word-meta">
+            <span><strong>발음:</strong> ${escapeHtml(pronunciation || '-')}</span>
+          </div>
+          ${renderOriginalLexiconDetails(word, lexiconEntry)}
+        </div>
+      `;
+    }).join('');
+    const sentenceDirection = entry.language === 'hebrew' ? 'rtl' : 'ltr';
+    const sentenceTokens = entry.words.map((word, index) => {
+      const kjvPhrase = sentenceKjvPhrases[index] || '';
+      const accessibleKjv = kjvPhrase || 'KJV 직접 대응 없음';
+      return `
+        <button type="button" class="original-sentence-token ${entry.language === 'hebrew' ? 'rtl' : ''}" data-word-index="${index}" aria-label="${escapeHtml(`${word.original}, KJV ${accessibleKjv}, 단어 해설 보기`)}">
+          <span class="original-sentence-word" dir="${sentenceDirection}">${escapeHtml(word.original)}</span>
+          <span class="original-sentence-english" dir="ltr" title="${escapeHtml(accessibleKjv)}">${escapeHtml(kjvPhrase || '—')}</span>
+        </button>
+      `;
+    }).join('');
+
     panel.innerHTML = `
-      <div class="original-panel-header">
-        <div>
-          <div class="original-panel-kicker">원어 해설</div>
-          <h4>${escapeHtml(key)}</h4>
+      <section class="original-sentence-section" aria-label="${escapeHtml(`${languageLabel} 원어 문장`)}">
+        <div class="original-sentence-heading">
+          <div class="original-sentence-label">${escapeHtml(languageLabel)} 원어 문장</div>
+          <div class="original-sentence-source">KJV 1769 대응</div>
         </div>
-      </div>
+        <div class="original-sentence-line ${entry.language === 'hebrew' ? 'rtl' : ''}" dir="${sentenceDirection}">
+          ${sentenceTokens}
+        </div>
+      </section>
+
+      <section class="original-panel-section">
+        <div class="original-section-title"><span>1</span> 단어와 의미</div>
+        <div class="original-word-list">${wordCards}</div>
+      </section>
+
+      <div class="original-source-note">${escapeHtml(entry.sourceNote || '원어 데이터 기반')}</div>
       ${verseGuideHtml}
-      <div class="original-panel-missing">
-        <strong>${result.missingReason ? '대응하는 BHSA 원문 절 없음' : '원어 데이터 없음'}</strong>
-        <p>${escapeHtml(result.missingReason || '원어 데이터 파일을 읽지 못했습니다. 앱의 original-data 폴더가 함께 있는지 확인해주세요.')}</p>
-        <span>구약은 OpenHebrewBible의 KJV 절 번호 매핑, 신약은 TRx/KJV1769x Strong 매핑 기준입니다.</span>
-      </div>
     `;
-    return;
-  }
 
-  const languageLabel = entry.languageLabel || (entry.language === 'hebrew' ? '히브리어' : '헬라어');
-  if (entry.language === 'hebrew') {
-    await loadHebrewLexicon();
-  } else if (entry.language === 'greek') {
-    await loadGreekLexicon();
-  }
-  if (requestId !== originalPanelRequestId) return;
-  const kjv1769StrongBookData = await loadKjv1769StrongBookData(bookName);
-  if (requestId !== originalPanelRequestId) return;
-  const kjvVerseData = kjv1769StrongBookData && kjv1769StrongBookData.verses
-    ? (kjv1769StrongBookData.verses[`${Number(chapter)}:${Number(verse)}`] || null)
-    : null;
-  const kjvStrongItems = Array.isArray(kjvVerseData)
-    ? kjvVerseData
-    : (kjvVerseData && Array.isArray(kjvVerseData.words) ? kjvVerseData.words : []);
-  const verseStrongOccurrences = {};
-  const sentenceKjvPhrases = [];
-  const wordCards = entry.words.map((word, index) => {
-    const lexiconEntry = ['hebrew', 'greek'].includes(entry.language) ? getOriginalLexiconEntry(word) : null;
-    const displayStrong = normalizeStrongKey(word.strong) || word.strong || '-';
-    const normalizedStrong = normalizeStrongKey(word.strong);
-    if (normalizedStrong) verseStrongOccurrences[normalizedStrong] = (verseStrongOccurrences[normalizedStrong] || 0) + 1;
-    const alignmentWord = {
-      ...word,
-      strongOccurrence: Number(word.strongOccurrence) || verseStrongOccurrences[normalizedStrong] || 1
-    };
-    const pronunciation = ['hebrew', 'greek'].includes(entry.language)
-      ? getLexiconPronunciationEn(lexiconEntry, word)
-      : word.transliteration;
-    const kjvMatch = getKjvAlignmentMatch(alignmentWord, kjvStrongItems);
-    const exactKjvPhrase = (kjvMatch && kjvMatch.phrase) || '';
-    sentenceKjvPhrases[index] = exactKjvPhrase;
-    return `
-      <div class="original-word-card" tabindex="0">
-        <div class="original-word-main">
-          <span class="original-script ${entry.language === 'hebrew' ? 'rtl' : ''}" dir="${entry.language === 'hebrew' ? 'rtl' : 'ltr'}">${escapeHtml(word.original)}</span>
-          <span class="original-word-head-right">
-            ${renderStrongCodeLink(displayStrong)}
-          </span>
-        </div>
-        <div class="original-word-meta">
-          <span><strong>발음:</strong> ${escapeHtml(pronunciation || '-')}</span>
-        </div>
-        ${renderOriginalLexiconDetails(word, lexiconEntry)}
-      </div>
-    `;
-  }).join('');
-  const sentenceDirection = entry.language === 'hebrew' ? 'rtl' : 'ltr';
-  const sentenceTokens = entry.words.map((word, index) => {
-    const kjvPhrase = sentenceKjvPhrases[index] || '';
-    const accessibleKjv = kjvPhrase || 'KJV 직접 대응 없음';
-    return `
-      <button type="button" class="original-sentence-token ${entry.language === 'hebrew' ? 'rtl' : ''}" data-word-index="${index}" aria-label="${escapeHtml(`${word.original}, KJV ${accessibleKjv}, 단어 해설 보기`)}">
-        <span class="original-sentence-word" dir="${sentenceDirection}">${escapeHtml(word.original)}</span>
-        <span class="original-sentence-english" dir="ltr" title="${escapeHtml(accessibleKjv)}">${escapeHtml(kjvPhrase || '—')}</span>
-      </button>
-    `;
-  }).join('');
+    const renderedWordCards = Array.from(panel.querySelectorAll('.original-word-card'));
+    const renderedSentenceTokens = Array.from(panel.querySelectorAll('.original-sentence-token'));
 
-  panel.innerHTML = `
-    <div class="original-panel-header">
-      <div>
-        <div class="original-panel-kicker">${escapeHtml(languageLabel)} 해설</div>
-        <h4>${escapeHtml(key)}</h4>
-      </div>
-      <span class="original-lang-badge">${escapeHtml(languageLabel)}</span>
-    </div>
-
-    ${verseGuideHtml}
-
-    <section class="original-sentence-section" aria-label="${escapeHtml(`${languageLabel} 원어 문장`)}">
-      <div class="original-sentence-heading">
-        <div class="original-sentence-label">원어 문장</div>
-        <div class="original-sentence-source">KJV 1769 대응</div>
-      </div>
-      <div class="original-sentence-line ${entry.language === 'hebrew' ? 'rtl' : ''}" dir="${sentenceDirection}">
-        ${sentenceTokens}
-      </div>
-    </section>
-
-    <section class="original-panel-section">
-      <div class="original-section-title"><span>1</span> 단어와 의미</div>
-      <div class="original-word-list">${wordCards}</div>
-    </section>
-
-    <div class="original-source-note">${escapeHtml(entry.sourceNote || '원어 데이터 기반')}</div>
-  `;
-
-  const renderedWordCards = Array.from(panel.querySelectorAll('.original-word-card'));
-  const renderedSentenceTokens = Array.from(panel.querySelectorAll('.original-sentence-token'));
-
-  renderedWordCards.forEach((card, index) => {
-    const activate = () => {
-      renderedWordCards.forEach(item => item.classList.remove('linked'));
-      renderedSentenceTokens.forEach(item => item.classList.remove('linked'));
-      card.classList.add('linked');
-      if (renderedSentenceTokens[index]) renderedSentenceTokens[index].classList.add('linked');
-    };
-    card.addEventListener('mouseenter', activate);
-    card.addEventListener('focus', activate);
-    card.addEventListener('click', activate);
-  });
-
-  renderedSentenceTokens.forEach((token, index) => {
-    token.addEventListener('click', event => {
-      event.stopPropagation();
-      const card = renderedWordCards[index];
-      if (!card) return;
-      card.click();
-      card.focus({ preventScroll: true });
-      card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    renderedWordCards.forEach((card, index) => {
+      const activate = () => {
+        renderedWordCards.forEach(item => item.classList.remove('linked'));
+        renderedSentenceTokens.forEach(item => item.classList.remove('linked'));
+        card.classList.add('linked');
+        if (renderedSentenceTokens[index]) renderedSentenceTokens[index].classList.add('linked');
+      };
+      card.addEventListener('mouseenter', activate);
+      card.addEventListener('focus', activate);
+      card.addEventListener('click', activate);
     });
-  });
 
-  panel.querySelectorAll('[data-strong-link="true"]').forEach(link => {
-    link.addEventListener('click', () => {
-      rememberBibleReaderForReturn();
+    renderedSentenceTokens.forEach((token, index) => {
+      token.addEventListener('click', event => {
+        event.stopPropagation();
+        const card = renderedWordCards[index];
+        if (!card) return;
+        card.click();
+        card.focus({ preventScroll: true });
+        card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
     });
-  });
+
+    panel.querySelectorAll('[data-strong-link="true"]').forEach(link => {
+      link.addEventListener('click', () => {
+        rememberBibleReaderForReturn();
+      });
+    });
+  } catch (error) {
+    if (requestId !== originalPanelRequestId) return;
+    console.error('Unable to load verse commentary.', error);
+    panel.innerHTML = '<div class="original-panel-missing" role="alert"><strong>원어 해설을 불러오지 못했습니다.</strong><p>창을 닫고 해당 절을 다시 선택해주세요.</p></div>';
+  } finally {
+    if (requestId === originalPanelRequestId) panel.setAttribute('aria-busy', 'false');
+  }
 }
 
 // 한글 본문 구절 파싱 함수
@@ -3960,13 +3990,13 @@ async function fetchBibleChapterPair(bookNumber, chapter, bookNameKOR) {
 
 // getBible API v2를 호출하여 성경 구절을 가져온 뒤 모달 창에 시각화
 async function openBibleReader(title, passageData) {
+  closeAccessibleModal(document.getElementById('original-language-modal'));
   const requestId = ++bibleReaderRequestId;
   const modal = document.getElementById('bible-reader-modal');
   const modalTitle = document.getElementById('bible-reader-title');
   const loading = modal.querySelector('.bible-loading');
   const textContainer = document.getElementById('bible-text-container');
   const errorContainer = document.getElementById('bible-error-container');
-  const originalPanel = document.getElementById('original-language-panel');
   
   // 모달 타이틀 설정
   modalTitle.innerHTML = `${escapeHtml(title)} <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted); margin-left: 0.5rem; vertical-align: middle;">(개역한글 · KJV)</span>`;
@@ -3978,10 +4008,7 @@ async function openBibleReader(title, passageData) {
   textContainer.classList.add('hidden');
   errorContainer.classList.add('hidden');
   textContainer.innerHTML = '';
-  if (originalPanel) {
-    originalPanel.classList.add('hidden');
-    originalPanel.innerHTML = '<div class="original-panel-empty">절을 선택하면 원어 해설이 열립니다.</div>';
-  }
+  modal.querySelector('.bible-reader-main').scrollTop = 0;
   
   try {
     const fetchPromises = [];

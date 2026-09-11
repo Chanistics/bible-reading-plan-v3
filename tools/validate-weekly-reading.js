@@ -67,6 +67,17 @@ function displayedRangeVerses(text) {
   return verses;
 }
 
+function readerPassageVerses(passage) {
+  if (Array.isArray(passage)) return expectedReading(passage);
+  const ref = context.parseKoreanReference(passage);
+  assert(ref, `Invalid reader passage: ${passage}`);
+  const verses = [];
+  for (let chapter = ref.startCh; chapter <= ref.endCh; chapter++) {
+    verses.push(...chapterVerses(ref.bookName, chapter, chapter === ref.startCh ? ref.startVs ?? 1 : 1, chapter === ref.endCh ? ref.endVs ?? Infinity : Infinity));
+  }
+  return verses;
+}
+
 function verifyWeeklyRanges(dates, plan) {
   const groups = context.getWeeklyReadingRanges(dates, plan);
   for (const field of ['torah', 'torahCompletion', 'megillah', 'ot', 'nt']) {
@@ -95,6 +106,7 @@ for (let index = 0; index < anchors.length - 1; index++) {
       const group = groups.find(item => item.type === field);
       const actual = group ? Array.from(group.chapters).flatMap(range => chapterVerses(range.book, range.chapter, range.startVerse, range.endVerse ?? Infinity)) : [];
       assert.deepStrictEqual(actual, expectedReading(day[field]), `${date}: weekly ${field} must match the assigned verses exactly`);
+      if (group) assert.deepStrictEqual(readerPassageVerses(group.passageData), actual, `${date}: clicking ${field} must open only its assigned passage`);
     }
     daysChecked++;
   }
@@ -133,4 +145,4 @@ assert.strictEqual(context.getWeeklyReadingRanges(Object.keys(gapPlan), gapPlan)
 assert.strictEqual(context.getWeeklyReadingRanges(Object.keys(gapPlan), gapPlan)[1].ranges.length, 2, 'Do not bridge an unread chapter');
 assert.strictEqual(context.getWeeklyReadingRanges([], gapPlan).length, 0);
 
-console.log(`Weekly checks passed: ${daysChecked} daily ranges and ${weeksChecked} displayed weekly summaries across four cycles; full-week completion, undo, gaps, and cycle boundaries.`);
+console.log(`Weekly checks passed: ${daysChecked} daily ranges and reader links, ${weeksChecked} displayed weekly summaries across four cycles; full-week completion, undo, gaps, and cycle boundaries.`);

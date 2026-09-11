@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="P274">
   
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@700;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=53">
+  <link rel="stylesheet" href="style.css?v=54">
   <link rel="icon" href="icon-192.png" type="image/png">
   <link rel="manifest" href="manifest.json">
 </head>
@@ -322,9 +322,6 @@
                 본문을 불러오지 못했습니다. 네트워크 연결을 확인해주세요.
               </div>
             </div>
-            <aside id="original-language-panel" class="original-language-panel hidden">
-              <div class="original-panel-empty">절을 선택하면 원어 해설이 열립니다.</div>
-            </aside>
           </div>
         </div>
       </div>
@@ -416,6 +413,17 @@
       </div>
     </div>
 
+    <!-- Selected Verse Commentary Modal -->
+    <div id="original-language-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="original-language-title">
+      <div class="modal-content original-language-modal-content">
+        <div class="modal-header">
+          <h3 id="original-language-title" class="modal-title">원어 해설</h3>
+          <button id="btn-close-original" class="btn-close" type="button" title="원어 해설 닫기" aria-label="원어 해설 닫기">&times;</button>
+        </div>
+        <div id="original-language-panel" class="modal-body original-language-panel"></div>
+      </div>
+    </div>
+
     <!-- Generating state overlay -->
     <div id="generating-overlay" class="generating-overlay hidden" role="status" aria-live="polite">
       <div class="spinner"></div>
@@ -431,7 +439,7 @@
   <script src="hebcal.js"></script>
   <script src="generator.js?v=2"></script>
   <script src="original-language-data.js?v=1"></script>
-  <script src="app.js?v=63"></script>
+  <script src="app.js?v=64"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

@@ -22,6 +22,11 @@ const bookNames = { '요한1서': '요한일서', '요한2서': '요한이서', 
 const books = Object.fromEntries(Object.values(korean.window.KOREAN_BIBLE_BOOKS).map(book => [book.name, book]));
 const englishTorah = { Genesis: '창세기', Exodus: '출애굽기', Leviticus: '레위기', Numbers: '민수기', Deuteronomy: '신명기' };
 
+context.window.BIBLE_DATA.TORAH_BOOKS.forEach(book => {
+  const expected = Object.values(books[book.name].chapters).map(rows => Math.max(...rows.map(row => row[0])));
+  assert.deepStrictEqual(Array.from(book.verseCounts), expected, `${book.name}: range boundaries must match bundled KRV`);
+});
+
 function chapterVerses(book, chapter, start = 1, end = Infinity) {
   const rows = books[bookNames[book] || book]?.chapters[chapter];
   assert(rows, `Unknown weekly chapter: ${book} ${chapter}`);
@@ -50,6 +55,28 @@ function expectedReading(reading) {
   return verses;
 }
 
+function displayedRangeVerses(text) {
+  if (!text.includes(':')) return expectedReading(text);
+  const match = text.match(/^(.+?) (\d+):(\d+)(?:-(?:(\d+):)?(\d+))?$/);
+  assert(match, `Invalid displayed range: ${text}`);
+  const [, book, startCh, startVs, endCh = startCh, endVs = startVs] = match;
+  const verses = [];
+  for (let ch = Number(startCh); ch <= Number(endCh); ch++) {
+    verses.push(...chapterVerses(book, ch, ch === Number(startCh) ? Number(startVs) : 1, ch === Number(endCh) ? Number(endVs) : Infinity));
+  }
+  return verses;
+}
+
+function verifyWeeklyRanges(dates, plan) {
+  const groups = context.getWeeklyReadingRanges(dates, plan);
+  for (const field of ['torah', 'torahCompletion', 'megillah', 'ot', 'nt']) {
+    const expected = [...new Set(dates.flatMap(date => expectedReading(plan[date][field])))].sort();
+    const group = groups.find(item => item.type === field);
+    const actual = group ? Array.from(group.ranges).flatMap(range => displayedRangeVerses(context.formatWeeklyReadingRange(range))) : [];
+    assert.deepStrictEqual(actual.sort(), expected, `${dates[0]}: displayed weekly ${field} must match assigned verses with no gaps filled or duplicates`);
+  }
+}
+
 const events = Object.values(context.window.BUNDLED_HEBCAL_DATA.years).flat();
 const anchors = events.filter(event => event.title === 'Parashat Bereshit').map(event => {
   const date = new Date(`${event.date}T00:00:00Z`);
@@ -57,6 +84,7 @@ const anchors = events.filter(event => event.title === 'Parashat Bereshit').map(
   return date.toISOString().slice(0, 10);
 });
 let daysChecked = 0;
+let weeksChecked = 0;
 for (let index = 0; index < anchors.length - 1; index++) {
   const plan = context.window.Generator.generateHebrewYearPlan(events, anchors[index], (new Date(anchors[index + 1]) - new Date(anchors[index])) / 86400000);
   context.window.TEST_PLAN = plan;
@@ -72,6 +100,10 @@ for (let index = 0; index < anchors.length - 1; index++) {
   }
 
   const dates = Object.keys(plan).sort();
+  for (let offset = 0; offset < dates.length; offset += 7) {
+    verifyWeeklyRanges(dates.slice(offset, offset + 7), plan);
+    weeksChecked++;
+  }
   context.window.TEST_WEEK_DATE = dates[3];
   context.window.TEST_OUTSIDE_DATE = dates[7];
   vm.runInContext(`
@@ -91,4 +123,14 @@ for (let index = 0; index < anchors.length - 1; index++) {
   assert(Object.keys(vm.runInContext('appState.progress', context)).every(date => plan[date]), 'Week completion must stay within cycle bounds');
 }
 
-console.log(`Weekly checks passed: exact verse ranges for ${daysChecked} days across four cycles; full-week completion, undo, and cycle boundaries.`);
+const gapPlan = {
+  a: { torah: 'Genesis 1:1-1:5', ot: [{ book: '요나', chapter: 1 }] },
+  b: { torah: 'Genesis 1:7-1:10', ot: [{ book: '요나', chapter: 3 }] },
+  c: { torah: 'Genesis 1:10-1:15' }
+};
+verifyWeeklyRanges(Object.keys(gapPlan), gapPlan);
+assert.strictEqual(context.getWeeklyReadingRanges(Object.keys(gapPlan), gapPlan)[0].ranges.length, 2, 'Do not bridge an unread verse');
+assert.strictEqual(context.getWeeklyReadingRanges(Object.keys(gapPlan), gapPlan)[1].ranges.length, 2, 'Do not bridge an unread chapter');
+assert.strictEqual(context.getWeeklyReadingRanges([], gapPlan).length, 0);
+
+console.log(`Weekly checks passed: ${daysChecked} daily ranges and ${weeksChecked} displayed weekly summaries across four cycles; full-week completion, undo, gaps, and cycle boundaries.`);

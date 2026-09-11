@@ -5073,31 +5073,15 @@ body.light-mode .parasha-modal-tabs button.active {
 }
 
 .weekly-workspace .weekly-progress-summary {
-  grid-template-columns: auto 80px auto;
+  grid-template-columns: auto 80px;
 }
 
 .weekly-workspace .weekly-progress-track {
   width: 80px;
 }
 
-.weekly-complete-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 44px;
-  color: var(--ink-strong);
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.weekly-complete-control input {
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
-  margin: 0;
-  accent-color: var(--gold);
-  cursor: pointer;
+.weekly-workspace .weekly-parasha-title {
+  word-break: keep-all;
 }
 
 .weekly-parasha-explanation {
@@ -5174,7 +5158,7 @@ body.light-mode .parasha-modal-tabs button.active {
   border-radius: 6px;
   text-align: left;
   font: inherit;
-  cursor: pointer;
+  cursor: default;
 }
 
 .weekly-workspace .schedule-day-row.active {
@@ -5230,154 +5214,106 @@ body.light-mode .weekly-workspace .sched-reading.type-megillah .sched-reading-la
 body.light-mode .weekly-workspace .sched-reading.type-ot .sched-reading-label { color: #2d6b3a; }
 body.light-mode .weekly-workspace .sched-reading.type-nt .sched-reading-label { color: #a14b40; }
 
-.weekly-scripture-section {
-  max-width: 880px;
-  margin: 2rem auto 0;
-  min-width: 0;
-}
-
-.weekly-scripture-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.weekly-scripture-heading h4 {
-  font-size: 1.1rem;
-  color: var(--ink-strong);
-}
-
-.weekly-scripture-heading > span,
-.weekly-scripture-status {
-  color: var(--ink-muted);
-  font-size: 0.78rem;
-}
-
-.weekly-scripture-status:not(:empty) {
-  padding: 2rem 0;
-}
-
-.weekly-scripture-day {
-  margin-top: 2rem;
-  scroll-margin-top: 5rem;
-}
-
-.weekly-scripture-day > h5 {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-  font-size: 1rem;
-  color: var(--ink-strong);
+.weekly-reading-summary {
+  padding: 0 0 1.25rem;
+  margin-bottom: 1.25rem;
   border-bottom: 1px solid var(--line-soft);
-  padding-bottom: 0.75rem;
 }
 
-.weekly-scripture-day > h5 a {
-  color: var(--ink-muted);
-  font-size: 0.75rem;
-  font-weight: 500;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.weekly-scripture-passage {
-  margin: 1.25rem 0 2rem;
-}
-
-.weekly-scripture-passage h6 {
+.weekly-reading-heading {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.5rem;
-  color: var(--ink-strong);
-  font-size: 0.95rem;
-  line-height: 1.6;
-}
-
-.weekly-passage-label {
-  color: var(--gold);
-  font-size: 0.68rem;
-  font-weight: 700;
-}
-
-.weekly-scripture-chapter {
-  margin: 1.2rem 0;
-}
-
-.weekly-chapter-title {
-  font-size: 0.82rem;
-  color: var(--gold);
-  font-weight: 700;
+  gap: 0.75rem;
   margin-bottom: 0.5rem;
 }
 
-.weekly-scripture-verse {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.6rem 0.4rem;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--ink-normal);
+.weekly-reading-heading h4 {
+  font-size: 1rem;
+  color: var(--ink-strong);
+}
+
+.btn-week-complete {
+  min-height: 44px;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--gold);
+  border-radius: 6px;
+  background: var(--gold-dim);
+  color: var(--ink-strong);
   font: inherit;
-  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 700;
   cursor: pointer;
 }
 
-.weekly-scripture-verse:hover,
-.weekly-scripture-verse:focus-visible {
-  background: var(--gold-dim);
+.btn-week-complete[aria-pressed="true"] {
+  border-color: var(--line-soft);
+  background: transparent;
+  color: var(--ink-normal);
 }
 
-.weekly-verse-number {
-  font-size: 0.72rem;
-  font-weight: 700;
-  line-height: 2.5;
-  color: var(--gold);
+.btn-week-complete:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
 }
 
-.weekly-verse-lines {
+.weekly-reading-ranges {
+  margin: 0;
+}
+
+.weekly-reading-range {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.weekly-reading-range dt {
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+}
+
+.weekly-reading-range dd {
   display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
+  flex-wrap: wrap;
+  gap: 0.2rem 1.25rem;
+  margin: 0;
   min-width: 0;
+  color: var(--ink-strong);
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-.weekly-verse-korean {
-  font-size: 1rem;
-  line-height: 1.85;
-}
-
-.weekly-verse-english {
-  font-size: 0.8rem;
-  line-height: 1.6;
-  color: var(--ink-muted);
-}
-
 @media (max-width: 700px) {
-  .weekly-workspace .weekly-progress-summary {
-    grid-template-columns: minmax(0, 1fr) 80px;
+  .weekly-workspace .weekly-view-title-group {
+    grid-column: 1 / -1;
+    grid-row: 1;
   }
 
-  .weekly-complete-control {
-    grid-column: 1 / -1;
-    border-top: 1px solid var(--line-soft);
-    padding-top: 0.4rem;
+  .weekly-workspace .weekly-view-actions {
+    grid-column: 3;
+    grid-row: 2;
+  }
+
+  .weekly-workspace #btn-week-prev {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .weekly-workspace .weekly-progress-summary {
+    grid-template-columns: minmax(0, 1fr) 80px;
   }
 
   .weekly-workspace .weekly-schedule-list {
     grid-template-columns: repeat(7, 150px);
   }
 
-  .weekly-scripture-verse {
-    grid-template-columns: 20px minmax(0, 1fr);
-    padding-inline: 0;
+  .weekly-reading-range {
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 0.5rem;
   }
 }
 

@@ -32,7 +32,6 @@ const annualViewFilters = {
   status: 'all',
   book: 'all'
 };
-const weeklyScriptureState = { key: null, requestId: 0, promise: null };
 
 function safeStorageGet(key) {
   try {
@@ -1009,6 +1008,7 @@ function setupTabs() {
   document.querySelectorAll('.tab-item').forEach(btn => {
     btn.addEventListener('click', () => {
       const targetTab = btn.getAttribute('data-tab');
+      document.getElementById('today-reading-block').classList.toggle('hidden', !['dashboard', 'reading'].includes(targetTab));
       
       document.querySelectorAll('.tab-item').forEach(b => {
         b.classList.remove('active');
@@ -1190,25 +1190,9 @@ function setupScheduleViewActions() {
       renderDashboard();
     }
   });
-  document.getElementById('weekly-complete-checkbox').addEventListener('change', event => {
-    toggleWeekCompletion(activeDateStr, event.target.checked);
-  });
-  document.getElementById('btn-week-scripture-retry').addEventListener('click', () => {
-    loadWeeklyScripture(getWeekSummary(activeDateStr), true);
-  });
-  document.getElementById('weekly-scripture-content').addEventListener('click', async event => {
-    const verse = event.target.closest('.weekly-scripture-verse');
-    if (!verse) return;
-    const { book, chapter, verse: verseNumber } = verse.dataset;
-    await openBibleReader(`${book} ${chapter}장`, [{ book, chapter: Number(chapter) }]);
-    if (document.getElementById('bible-reader-modal').classList.contains('hidden')) return;
-    const row = Array.from(document.querySelectorAll('#bible-text-container .bible-verse-row')).find(item =>
-      item.dataset.book === book && item.dataset.chapter === chapter && item.dataset.verse === verseNumber
-    );
-    if (row) {
-      row.click();
-      row.scrollIntoView({ block: 'center' });
-    }
+  document.getElementById('btn-week-complete').addEventListener('click', () => {
+    const summary = getWeekSummary(activeDateStr);
+    toggleWeekCompletion(activeDateStr, summary.completedDays !== summary.totalDays);
   });
 
   document.querySelectorAll('[data-annual-status]').forEach(button => {
@@ -1582,14 +1566,10 @@ function renderWeeklySchedule(todayStr, days) {
   document.getElementById('weekly-date-range').textContent = formatPlanDateRange(summary.dates);
   document.getElementById('weekly-progress-text').textContent = `${summary.completedDays} / ${summary.totalDays}일 완료`;
   document.getElementById('weekly-progress-bar').style.width = `${summary.percentage}%`;
-  const completeCheckbox = document.getElementById('weekly-complete-checkbox');
-  completeCheckbox.checked = summary.completedDays === summary.totalDays;
-  completeCheckbox.indeterminate = !completeCheckbox.checked && summary.dates.some(date => {
-    const day = currentPlan[date];
-    return ['torah', 'torahCompletion', 'megillah', 'ot', 'nt'].some(field =>
-      (Array.isArray(day[field]) ? day[field].length > 0 : !!day[field]) && appState.progress[date]?.[field]
-    );
-  });
+  const completeButton = document.getElementById('btn-week-complete');
+  const isWeekCompleted = summary.completedDays === summary.totalDays;
+  completeButton.textContent = isWeekCompleted ? '한 주 완료 취소' : '한 주 전체 완료';
+  completeButton.setAttribute('aria-pressed', String(isWeekCompleted));
   document.getElementById('weekly-parasha-meaning').textContent = summary.parasha === 'Special Week' ? '절기 특별 본문' : meta.meaning;
   document.getElementById('weekly-parasha-description').innerHTML = getParashaExplanationHtml(summary.parasha, {
     holidays: summary.dates.flatMap(date => currentPlan[date].holidays || [])
@@ -1601,6 +1581,12 @@ function renderWeeklySchedule(todayStr, days) {
     <summary>탐구 주제 · ${guideStages.length}</summary>
     <ul>${guideStages.map(stage => `<li><strong>${escapeHtml(stage.title)}</strong><span>${escapeHtml(stage.reference)}</span></li>`).join('')}</ul>
   </details>` : '';
+
+  document.getElementById('weekly-reading-ranges').innerHTML = getWeeklyReadingRanges(summary.dates).map(group => `
+    <div class="weekly-reading-range" data-type="${group.type}">
+      <dt>${group.label}</dt>
+      <dd>${group.ranges.map(range => `<span>${escapeHtml(formatWeeklyReadingRange(range))}</span>`).join('')}</dd>
+    </div>`).join('');
 
   const holidayList = document.getElementById('weekly-holiday-list');
   holidayList.replaceChildren();
@@ -1646,12 +1632,10 @@ function renderWeeklySchedule(todayStr, days) {
     if (dayData.ot && dayData.ot.length) addReading('ot', '구약', formatReadingRange(dayData.ot));
     if (dayData.nt && dayData.nt.length) addReading('nt', '신약', formatReadingRange(dayData.nt));
 
-    const row = document.createElement('button');
-    row.type = 'button';
+    const row = document.createElement('div');
     row.className = `schedule-day-row${isActive ? ' active' : ''}${isToday ? ' today' : ''}${isCompleted ? ' completed' : ''}`;
     row.dataset.date = dateStr;
-    row.setAttribute('aria-label', `${month}월 ${day}일 본문으로 이동${isCompleted ? ', 완료' : ''}`);
-    row.setAttribute('aria-pressed', String(isActive));
+    if (isToday) row.setAttribute('aria-current', 'date');
     row.innerHTML = `
         <span class="sched-date-block">
           <span class="sched-weekday">${dayName}</span>
@@ -1660,16 +1644,8 @@ function renderWeeklySchedule(todayStr, days) {
         </span>
         <span class="sched-day-readings">${readings.join('')}</span>`;
 
-    row.addEventListener('click', async () => {
-      activeDateStr = dateStr;
-      renderDashboard();
-      await loadWeeklyScripture(summary);
-      if (!document.getElementById('tab-content-weekly').classList.contains('active') || activeDateStr !== dateStr) return;
-      document.getElementById(`weekly-scripture-${dateStr}`)?.scrollIntoView({ behavior: 'instant', block: 'start' });
-    });
     scheduleContainer.appendChild(row);
   });
-  if (document.getElementById('tab-content-weekly').classList.contains('active')) loadWeeklyScripture(summary);
 }
 
 function getWeeklyReadingGroups(dateStr, plan = currentPlan) {
@@ -1702,61 +1678,56 @@ function getWeeklyReadingGroups(dateStr, plan = currentPlan) {
   return groups;
 }
 
-function loadWeeklyScripture(summary, force = false) {
-  const key = JSON.stringify(summary.dates.map(date => currentPlan[date]));
-  if (!force && weeklyScriptureState.key === key) return weeklyScriptureState.promise;
-  const requestId = ++weeklyScriptureState.requestId;
-  weeklyScriptureState.key = key;
-  const content = document.getElementById('weekly-scripture-content');
-  const status = document.getElementById('weekly-scripture-status');
-  const retry = document.getElementById('btn-week-scripture-retry');
-  content.replaceChildren();
-  content.setAttribute('aria-busy', 'true');
-  status.textContent = '이번 주 본문을 불러오고 있습니다.';
-  retry.classList.add('hidden');
+function getWeeklyReadingRanges(dates, plan = currentPlan) {
+  const groups = new Map();
+  dates.forEach(date => getWeeklyReadingGroups(date, plan).forEach(group => {
+    if (!groups.has(group.type)) groups.set(group.type, { type: group.type, label: group.label, books: new Map() });
+    const books = groups.get(group.type).books;
+    group.chapters.forEach(range => {
+      if (!books.has(range.book)) books.set(range.book, []);
+      const lastVerse = window.BIBLE_DATA.TORAH_BOOKS.find(book => book.name === range.book)?.verseCounts[range.chapter - 1];
+      books.get(range.book).push({ ...range, endVerse: range.endVerse === lastVerse ? null : range.endVerse });
+    });
+  }));
 
-  weeklyScriptureState.promise = (async () => {
-    try {
-      const days = summary.dates.map(date => ({ date, groups: getWeeklyReadingGroups(date) }));
-      const chapterPromises = new Map();
-      days.forEach(day => day.groups.forEach(group => group.chapters.forEach(({ book, chapter }) => {
-        const chapterKey = `${book} ${chapter}`;
-        if (!chapterPromises.has(chapterKey)) chapterPromises.set(chapterKey, fetchBibleChapterPair(getBookNumber(book), chapter, book));
-      })));
-      const loaded = await Promise.all(Array.from(chapterPromises, async ([chapterKey, promise]) => [chapterKey, await promise]));
-      if (requestId !== weeklyScriptureState.requestId) return;
-      const chapters = new Map(loaded);
-      content.innerHTML = days.map(day => `<section class="weekly-scripture-day" id="weekly-scripture-${day.date}" data-date="${day.date}">
-        <h5><span>${escapeHtml(formatDateWithWeekday(day.date))}</span><a href="#weekly-schedule-container">주간 목록</a></h5>
-        ${day.groups.map(group => `<section class="weekly-scripture-passage" data-type="${group.type}">
-          <h6><span class="weekly-passage-label type-${group.type}">${group.label}</span>${escapeHtml(group.title)}</h6>
-          ${group.chapters.map(range => {
-            const chapter = chapters.get(`${range.book} ${range.chapter}`);
-            const verses = chapter.verses.filter(verse => verse.verse >= range.startVerse && (range.endVerse === null || verse.verse <= range.endVerse));
-            return `<div class="weekly-scripture-chapter"><p class="weekly-chapter-title">${escapeHtml(range.book)} ${range.chapter}장</p>
-              ${verses.map(verse => {
-                const kjv = chapter.__kjvVersesByNumber[verse.verse] || '';
-                return `<button class="weekly-scripture-verse" type="button" data-book="${escapeHtml(range.book)}" data-chapter="${range.chapter}" data-verse="${verse.verse}" aria-label="${escapeHtml(range.book)} ${range.chapter}장 ${verse.verse}절 원어 해설">
-                  <span class="weekly-verse-number">${verse.verse}</span><span class="weekly-verse-lines">
-                    ${verse.text ? `<span class="weekly-verse-korean">${escapeHtml(verse.text)}</span>` : ''}
-                    ${kjv ? `<span class="weekly-verse-english" lang="en">${escapeHtml(kjv)}</span>` : ''}
-                  </span></button>`;
-              }).join('')}
-            </div>`;
-          }).join('')}
-        </section>`).join('')}
-      </section>`).join('');
-      status.textContent = '';
-    } catch (error) {
-      if (requestId !== weeklyScriptureState.requestId) return;
-      console.error('Weekly scripture could not be loaded.', error);
-      status.textContent = '이번 주 본문을 불러오지 못했습니다. 다시 시도해주세요.';
-      retry.classList.remove('hidden');
-    } finally {
-      if (requestId === weeklyScriptureState.requestId) content.setAttribute('aria-busy', 'false');
-    }
-  })();
-  return weeklyScriptureState.promise;
+  return ['torah', 'torahCompletion', 'megillah', 'ot', 'nt'].filter(type => groups.has(type)).map(type => {
+    const group = groups.get(type);
+    const ranges = [];
+    group.books.forEach((chapters, book) => {
+      const merged = [];
+      chapters.sort((a, b) => a.chapter - b.chapter || a.startVerse - b.startVerse).forEach(range => {
+        const previous = merged[merged.length - 1];
+        if (previous && previous.chapter === range.chapter && range.startVerse <= (previous.endVerse ?? Infinity) + 1) {
+          previous.endVerse = previous.endVerse === null || range.endVerse === null
+            ? null : Math.max(previous.endVerse, range.endVerse);
+        } else {
+          merged.push({ ...range });
+        }
+      });
+      // Only join chapter boundaries when both sides actually reach that boundary.
+      merged.forEach(range => {
+        const previous = ranges[ranges.length - 1];
+        if (previous && previous.book === book && previous.endCh + 1 === range.chapter && previous.endVs === null && range.startVerse === 1) {
+          previous.endCh = range.chapter;
+          previous.endVs = range.endVerse;
+        } else {
+          ranges.push({ book, startCh: range.chapter, startVs: range.startVerse, endCh: range.chapter, endVs: range.endVerse });
+        }
+      });
+    });
+    return { type, label: group.label, ranges };
+  });
+}
+
+function formatWeeklyReadingRange(range) {
+  const { book, startCh, startVs, endCh, endVs } = range;
+  if (startVs === 1 && endVs === null) {
+    return `${book} ${startCh === endCh ? startCh : `${startCh}-${endCh}`}장`;
+  }
+  const end = endVs ?? window.BIBLE_DATA.TORAH_BOOKS.find(item => item.name === book)?.verseCounts[endCh - 1];
+  const start = `${startCh}:${startVs}`;
+  const finish = startCh === endCh ? end : `${endCh}:${end}`;
+  return `${book} ${startCh === endCh && startVs === end ? start : `${start}-${finish}`}`;
 }
 
 // 2. 대시보드 (오늘 읽기) 렌더링

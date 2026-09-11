@@ -143,13 +143,27 @@ async function main() {
   const expectedMegillot = new Set(context.window.BIBLE_DATA.MEGILLOT_BOOKS.flatMap(book =>
     Array.from({ length: book.chapters }, (_, index) => `${book.name} ${index + 1}`)
   ));
+  const expectedBibleVerses = new Set();
+  const versesByChapter = new Map();
+  categories.forEach(book => {
+    const source = koreanBooksByName[koreanNameAliases[book.name] || book.name];
+    Object.entries(source.chapters).forEach(([chapter, rows]) => {
+      const keys = rows.map(([verse]) => `${book.name} ${chapter}:${verse}`);
+      versesByChapter.set(`${book.name} ${chapter}`, keys);
+      keys.forEach(key => expectedBibleVerses.add(key));
+    });
+  });
+  const englishToKoreanTorah = Object.fromEntries(englishTorahNames.map((name, index) =>
+    [name, context.window.BIBLE_DATA.TORAH_BOOKS[index].name]
+  ));
+  const chapterKey = reading => `${reading.book} ${reading.chapter}`;
 
   for (let index = 0; index < starts.length - 1; index++) {
     const start = starts[index];
     const end = starts[index + 1];
     const plan = context.window.Generator.generateHebrewYearPlan(allEvents, start, dayDifference(start, end));
     const dates = Object.keys(plan).sort();
-    assert.deepStrictEqual(Array.from(dates.flatMap(date => plan[date].ot)), expectedOt, `${start}: complete OT chapter distribution`);
+    assert.deepStrictEqual(dates.flatMap(date => plan[date].ot).map(chapterKey).sort(), expectedOt.map(chapterKey).sort(), `${start}: each OT chapter must occur exactly once`);
     assert.deepStrictEqual(Array.from(dates.flatMap(date => plan[date].nt)), expectedNt, `${start}: complete NT chapter distribution`);
 
     const actualMegillotReadings = dates.flatMap(date => expandMegillah(plan[date].megillah));
@@ -163,31 +177,43 @@ async function main() {
       actualTorahReadings.push(...collectReadingVerses(plan[date].torahCompletion, verseSetsByEnglishBook));
     });
     const actualTorah = new Set(actualTorahReadings);
-    const completionCount = dates.filter(date => plan[date].torahCompletion).length;
-    const expectedCycleTorah = completionCount
-      ? expectedTorahVerses
-      : new Set(Array.from(expectedTorahVerses).filter(key => !/^Deuteronomy (?:33|34):/.test(key)));
+    assert.strictEqual(dates.filter(date => plan[date].torahCompletion).length, 1, `${start}: one annual Torah completion is required`);
     assert.deepStrictEqual(
       Array.from(actualTorah).sort(),
-      Array.from(expectedCycleTorah).sort(),
-      `${start}: Torah distribution must match the Israel transition dates contained in this Sunday-Saturday cycle`
+      Array.from(expectedTorahVerses).sort(),
+      `${start}: all Torah verses must be present within this reading cycle`
     );
 
-    const torahFrequency = new Map();
-    actualTorahReadings.forEach(key => torahFrequency.set(key, (torahFrequency.get(key) || 0) + 1));
-    const repeatedTorahVerses = Array.from(torahFrequency).filter(([, count]) => count > 1);
-    const allowedSpecialRepeat = new Set(Array.from({ length: 7 }, (_, offset) => `Numbers 28:${offset + 9}`));
-    repeatedTorahVerses.forEach(([key, count]) => {
-      if (/^Deuteronomy (?:33|34):/.test(key) && completionCount > 1) {
-        assert.strictEqual(count, completionCount, `${start}: completion verses must repeat only on actual transition dates`);
-        return;
-      }
-      assert(allowedSpecialRepeat.has(key), `${start}: unexpected repeated Torah verse ${key}`);
-      assert.strictEqual(count, 2, `${start}: special Torah verse must not occur more than twice: ${key}`);
+    const allAssignedVerses = actualTorahReadings.map(key => key.replace(/^(\S+)/, book => englishToKoreanTorah[book]));
+    const chapterReadings = dates.flatMap(date => [
+      ...plan[date].ot.map(chapterKey),
+      ...plan[date].nt.map(chapterKey),
+      ...expandMegillah(plan[date].megillah)
+    ]);
+    chapterReadings.forEach(key => {
+      assert(versesByChapter.has(key), `${start}: unknown assigned chapter ${key}`);
+      allAssignedVerses.push(...versesByChapter.get(key));
     });
+    const frequency = new Map();
+    allAssignedVerses.forEach(key => frequency.set(key, (frequency.get(key) || 0) + 1));
+    const missing = Array.from(expectedBibleVerses).filter(key => !frequency.has(key));
+    const invalid = Array.from(frequency.keys()).filter(key => !expectedBibleVerses.has(key));
+    assert.deepStrictEqual(missing, [], `${start}: missing Bible verses`);
+    assert.deepStrictEqual(invalid, [], `${start}: invalid Bible verses`);
+    assert.strictEqual(new Set(Array.from(frequency.keys(), key => key.replace(/ \d+:\d+$/, ''))).size, 66, `${start}: all 66 books must be assigned`);
+    assert.strictEqual(new Set(Array.from(frequency.keys(), key => key.replace(/:\d+$/, ''))).size, 1189, `${start}: all 1,189 chapters must be assigned`);
+    assert.strictEqual(frequency.size, 31102, `${start}: all 31,102 verses must be assigned`);
+
+    const repeated = Array.from(frequency).filter(([, count]) => count > 1);
+    const allowedSpecialRepeat = new Set(Array.from({ length: 7 }, (_, offset) => `민수기 28:${offset + 9}`));
+    repeated.forEach(([key, count]) => {
+      assert(allowedSpecialRepeat.has(key), `${start}: unexpected repeated Bible verse ${key}`);
+      assert.strictEqual(count, 2, `${start}: traditional special reading must not occur more than twice: ${key}`);
+    });
+    console.log(`${5786 + index}: 66 books / 1,189 chapters / ${frequency.size.toLocaleString('en-US')} unique verses; missing 0; unintended duplicates 0; traditional repeated verses ${repeated.length}${repeated.length ? ' (Numbers 28:9-15)' : ''}`);
   }
 
-  console.log('Coverage checks passed: 66 books, 1,189 chapters, 31,102 Korean verses, all Torah/Megillot/OT/NT readings without Megillot duplicates, and every bundled parasha meaning.');
+  console.log('Coverage checks passed against every Korean Bible verse, including complete Jonah/Obadiah and annual Deuteronomy 33-34, for all four bundled reading cycles.');
 }
 
 main().catch(error => {

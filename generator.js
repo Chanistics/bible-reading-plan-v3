@@ -122,9 +122,6 @@ function generateHebrewYearPlan(hebcalItems, startDateStr, totalDays = 365) {
         hebrew: item.hebrew,
         memo: item.memo
       });
-      if (/^(?:shmini atzeret(?: \/ simchat torah)?|simchat torah)$/i.test(item.title)) {
-        plan[item.date].torahCompletion = 'Deuteronomy 33:1-34:12';
-      }
     }
 
     if (item.category === 'parashat') {
@@ -158,6 +155,14 @@ function generateHebrewYearPlan(hebcalItems, startDateStr, totalDays = 365) {
       dayData.torah = convertHebcalTorahReading(upcomingParasha.leyning[aliyahNum.toString()] || null);
     }
   });
+
+  // Sunday-based cycles can contain zero or two Simchat Torah dates. Complete
+  // this cycle once, after its final aliyah, without changing festival dates.
+  const lastTorahDate = datesList.filter(date => plan[date].torah).pop();
+  const completionDate = datesList.find(date => date >= lastTorahDate && plan[date].holidays.some(holiday =>
+    /^(?:shmini atzeret(?: \/ simchat torah)?|simchat torah)$/i.test(holiday.name)
+  )) || datesList[datesList.length - 1];
+  plan[completionDate].torahCompletion = 'Deuteronomy 33:1-34:12';
 
   // 4. 메길롯 배분 (절기가 포함된 주간에 수록)
   const weeks = {}; // SundayDateStr -> [dateStr, ...]
@@ -283,6 +288,23 @@ function generateHebrewYearPlan(hebcalItems, startDateStr, totalDays = 365) {
     plan[ntLastDate].nt.push(ntFlat[ntIndex]);
     ntIndex++;
   }
+
+  // Move whole books after distribution so other chapters keep their dates.
+  const specialBookRules = [
+    { id: 'Jonah', matches: day => day.holidays.some(holiday => /^Yom Kippur$/i.test(holiday.name)) },
+    { id: 'Obad', matches: day => day.dayOfWeek === 6 && /^Vayishlach$/i.test(day.parasha || '') }
+  ];
+  specialBookRules.forEach(rule => {
+    const book = window.BIBLE_DATA.OT_OTHER_BOOKS.find(item => item.id === rule.id);
+    const targetDates = datesList.filter(date => rule.matches(plan[date]));
+    if (targetDates.length !== 1) {
+      throw new Error(`${rule.id}: expected one annual reading date, found ${targetDates.length}`);
+    }
+    datesList.forEach(date => {
+      plan[date].ot = plan[date].ot.filter(reading => reading.book !== book.name);
+    });
+    plan[targetDates[0]].ot.push(...window.BIBLE_DATA.flattenBooks([book]));
+  });
 
   return plan;
 }

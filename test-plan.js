@@ -106,10 +106,66 @@ async function main() {
 
   const expectedOt = context.window.BIBLE_DATA.flattenBooks(context.window.BIBLE_DATA.OT_OTHER_BOOKS);
   const expectedNt = context.window.BIBLE_DATA.flattenBooks(context.window.BIBLE_DATA.NT_BOOKS);
-  assert.deepStrictEqual(Array.from(dates.flatMap(date => plan[date].ot)), Array.from(expectedOt));
+  const chapterKey = reading => `${reading.book} ${reading.chapter}`;
+  assert.deepStrictEqual(dates.flatMap(date => plan[date].ot).map(chapterKey).sort(), Array.from(expectedOt, chapterKey).sort());
   assert.deepStrictEqual(Array.from(dates.flatMap(date => plan[date].nt)), Array.from(expectedNt));
 
-  console.log('Plan checks passed: offline calendar, 5787 dates, Torah aliyot, and full OT/NT distribution.');
+  assert.deepStrictEqual(Array.from(plan['2027-10-11'].ot, chapterKey), ['요나 1', '요나 2', '요나 3', '요나 4']);
+  assert(plan['2026-11-28'].ot.some(reading => chapterKey(reading) === '오바댜 1'));
+  assert.strictEqual(plan['2026-11-28'].parasha, 'Vayishlach');
+  assert.throws(() => context.window.Generator.generateHebrewYearPlan(
+    [...years['2026'], ...years['2027']].filter(item => item.title !== 'Yom Kippur'),
+    start,
+    dayDifference(start, nextStart)
+  ), /Jonah: expected one annual reading date/, 'Missing holiday data must not silently omit or misplace Jonah');
+
+  context.window.TEST_PREVIOUS_PLAN = {
+    '2026-01-01': { ot: [{ book: '요나', chapter: 1 }, { book: '요나', chapter: 2 }] },
+    '2026-01-02': { ot: [{ book: '요나', chapter: 3 }, { book: '요나', chapter: 4 }, { book: '미가', chapter: 1 }] },
+    '2026-01-03': { ot: [{ book: '열왕기하', chapter: 18 }] },
+    '2026-01-04': { ot: [{ book: '오바댜', chapter: 1 }] },
+    '2026-09-21': { ot: [] },
+    '2026-10-03': { ot: [], torahCompletion: 'Deuteronomy 33:1-34:12' },
+    '2025-10-14': { ot: [], torahCompletion: 'Deuteronomy 33:1-34:12' }
+  };
+  context.window.TEST_REVISED_PLAN = {
+    '2026-01-01': { ot: [] },
+    '2026-01-02': { ot: [{ book: '미가', chapter: 1 }] },
+    '2026-01-03': { ot: [{ book: '열왕기하', chapter: 18 }, { book: '오바댜', chapter: 1 }] },
+    '2026-01-04': { ot: [] },
+    '2026-09-21': { ot: [1, 2, 3, 4].map(chapter => ({ book: '요나', chapter })) },
+    '2026-10-03': { ot: [], torahCompletion: 'Deuteronomy 33:1-34:12' },
+    '2025-10-14': { ot: [] }
+  };
+  const migrated = vm.runInContext(`
+    appState = createDefaultAppState();
+    appState.progress = {
+      '2026-01-01': { ot: true, torah: true },
+      '2026-01-02': { ot: true },
+      '2026-01-03': { ot: true },
+      '2026-09-21': { nt: true },
+      '2025-10-14': { torahCompletion: true }
+    };
+    const migrationSourceProgress = JSON.parse(JSON.stringify(appState.progress));
+    migrateProgressToUpdatedPlan('5786', window.TEST_REVISED_PLAN, JSON.stringify(window.TEST_PREVIOUS_PLAN), migrationSourceProgress);
+    JSON.parse(JSON.stringify(appState.progress));
+  `, context);
+  assert.strictEqual(migrated['2026-09-21'].ot, true, 'Completed Jonah chapters must follow their new date');
+  assert.strictEqual(migrated['2026-09-21'].nt, true, 'NT progress must survive migration');
+  assert.strictEqual(migrated['2026-01-01'].torah, true, 'Torah progress must survive migration');
+  assert.strictEqual(migrated['2026-01-01'].ot, undefined, 'Removed readings must not retain stale progress');
+  assert.strictEqual(migrated['2026-01-02'].ot, true, 'Remaining completed chapters must stay completed');
+  assert.strictEqual(migrated['2026-01-03'].ot, undefined, 'An added unread Obadiah must not inherit a completed checkbox');
+  assert.strictEqual(migrated['2025-10-14'].torahCompletion, undefined, 'Removed duplicate completion must not retain its checkbox');
+  assert.strictEqual(migrated['2026-10-03'].torahCompletion, true, 'Previously completed Torah ending must remain completed');
+  assert(vm.runInContext("memoryStorage.has('parashat_progress_before_v13_5786')", context), 'Original progress must be backed up');
+  vm.runInContext(`
+    appState.progress['2026-09-21'].ot = false;
+    migrateProgressToUpdatedPlan('5786', window.TEST_REVISED_PLAN, JSON.stringify(window.TEST_PREVIOUS_PLAN), migrationSourceProgress);
+  `, context);
+  assert.strictEqual(vm.runInContext("appState.progress['2026-09-21'].ot", context), false, 'Migration must not overwrite later user edits');
+
+  console.log('Plan checks passed: offline calendar, special book dates, complete OT/NT distribution, and progress migration.');
 }
 
 main().catch(error => {

@@ -140,8 +140,23 @@ function main() {
       assert.strictEqual(plan[dateStr].dayOfWeek, new Date(`${dateStr}T00:00:00Z`).getUTCDay(), `${hYear}: weekday mismatch`);
     });
 
-    assert.deepStrictEqual(Array.from(dates.flatMap(date => plan[date].ot)), expectedOt, `${hYear}: OT sequence mismatch`);
+    const chapterKey = reading => `${reading.book} ${reading.chapter}`;
+    const actualOt = dates.flatMap(date => plan[date].ot);
+    assert.deepStrictEqual(actualOt.map(chapterKey).sort(), expectedOt.map(chapterKey).sort(), `${hYear}: OT chapters must occur exactly once`);
+    const isSequential = reading => !['요나', '오바댜'].includes(reading.book);
+    assert.deepStrictEqual(actualOt.filter(isSequential), expectedOt.filter(isSequential), `${hYear}: remaining OT sequence mismatch`);
     assert.deepStrictEqual(Array.from(dates.flatMap(date => plan[date].nt)), expectedNt, `${hYear}: NT sequence mismatch`);
+
+    const jonahDates = dates.filter(date => plan[date].ot.some(reading => reading.book === '요나'));
+    const obadiahDates = dates.filter(date => plan[date].ot.some(reading => reading.book === '오바댜'));
+    const yomKippurDates = allEvents.filter(item => plan[item.date] && item.category === 'holiday' && item.title === 'Yom Kippur').map(item => item.date);
+    const vayishlachDates = allEvents.filter(item => plan[item.date] && item.category === 'parashat' && item.title === 'Parashat Vayishlach').map(item => item.date);
+    assert.strictEqual(jonahDates.length, 1, `${hYear}: Jonah must be read in full on one day`);
+    assert.strictEqual(obadiahDates.length, 1, `${hYear}: Obadiah must be read on one day`);
+    assert.deepStrictEqual(jonahDates, yomKippurDates, `${hYear}: Jonah belongs on Yom Kippur itself`);
+    assert.deepStrictEqual(obadiahDates, vayishlachDates, `${hYear}: Obadiah belongs on Vayishlach Saturday`);
+    assert.deepStrictEqual(Array.from(plan[jonahDates[0]].ot.filter(reading => reading.book === '요나'), reading => reading.chapter), [1, 2, 3, 4]);
+    assert.strictEqual(plan[obadiahDates[0]].dayOfWeek, 6);
 
     const megillot = dates.flatMap(date => expandMegillah(plan[date].megillah));
     assert.strictEqual(megillot.length, expectedMegillot.size, `${hYear}: Megillot chapters must occur exactly once`);
@@ -184,23 +199,22 @@ function main() {
     const completionHolidayDates = dates.filter(date => plan[date].holidays.some(holiday =>
       /^(?:shmini atzeret(?: \/ simchat torah)?|simchat torah)$/i.test(holiday.name)
     ));
-    assert.deepStrictEqual(
-      completionDates,
-      completionHolidayDates,
-      `${hYear}: every Israel Simchat Torah date must carry the Torah completion reading`
-    );
+    const lastTorahDate = dates.filter(date => plan[date].torah).pop();
+    const eligibleCompletionDate = completionHolidayDates.find(date => date >= lastTorahDate);
+    assert.deepStrictEqual(completionDates, [eligibleCompletionDate || dates[dates.length - 1]], `${hYear}: complete Torah exactly once after the last aliyah`);
+    assert.strictEqual(plan[completionDates[0]].torahCompletion, 'Deuteronomy 33:1-34:12');
     assert.strictEqual(
       dates.filter(date => !plan[date].torah && !plan[date].torahCompletion && !plan[date].megillah && !plan[date].ot.length && !plan[date].nt.length).length,
       0,
       `${hYear}: plan must not contain an empty reading day`
     );
 
-    cycleReports.push(`${hYear}: ${totalDays} days, ${totalDays / 7} weeks, ${parashaWeeks} parasha weeks, ${specialWeeks} holiday weeks`);
+    cycleReports.push(`${hYear}: ${totalDays} days, Jonah ${jonahDates[0]}, Obadiah ${obadiahDates[0]}, Torah completion ${completionDates[0]}${eligibleCompletionDate ? '' : ' (cycle-end reading)'}, ${parashaWeeks} parasha weeks, ${specialWeeks} holiday weeks`);
   }
 
   console.log(`Calendar integrity checks passed for ${cycleReports.length} complete offline cycles.`);
   cycleReports.forEach(report => console.log(`- ${report}`));
-  console.log('Verified Israel festival dates, continuous days, source aliyot, eligible Torah completion dates, 39 unique Megillot chapters, 703 OT chapters, and 260 NT chapters per cycle.');
+  console.log('Verified Israel festival dates, source aliyot, one Torah completion, 39 Megillot chapters, 698 sequential OT chapters + 5 special-book chapters, and 260 NT chapters per cycle.');
 }
 
 main();

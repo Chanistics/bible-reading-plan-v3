@@ -1,7 +1,8 @@
 // app.js
 
 const STATE_KEY = 'parashat_tracker_state';
-const PLAN_KEY_PREFIX = 'parashat_plan_v12_israel_';
+const PLAN_KEY_PREFIX = 'parashat_plan_v13_israel_';
+const PREVIOUS_PLAN_KEY_PREFIX = 'parashat_plan_v12_israel_';
 const LEGACY_PLAN_KEY_PREFIX = 'parashat_plan_v11_';
 const DEFAULT_FAMILY_NAME = "Come and See!";
 const LEGACY_DEFAULT_NAMES = new Set([
@@ -172,6 +173,50 @@ function migrateProgressToIsraelPlan(hYear, israelPlan) {
   }
 
   appState.calendarStandard = 'israel';
+  saveAppState();
+}
+
+function migrateProgressToUpdatedPlan(hYear, plan, previousRaw, previousProgress) {
+  const migrations = appState.readingPlanMigrations || {};
+  if (migrations[hYear] === PLAN_KEY_PREFIX) return;
+
+  if (previousRaw) {
+    try {
+      const previousPlan = JSON.parse(previousRaw);
+      const completedChapters = new Set();
+      let completedTorah = false;
+      Object.entries(previousPlan).forEach(([date, day]) => {
+        const progress = previousProgress[date] || {};
+        if (progress.ot) {
+          (day.ot || []).forEach(reading => completedChapters.add(`${reading.book} ${reading.chapter}`));
+        }
+        if (day.torahCompletion && progress.torahCompletion) completedTorah = true;
+      });
+
+      safeStorageSet(`parashat_progress_before_v13_${hYear}`, JSON.stringify(previousProgress));
+      Object.entries(plan).forEach(([date, day]) => {
+        const previousDay = previousPlan[date];
+        if (!previousDay) return;
+        const progress = appState.progress[date] || {};
+        if (JSON.stringify(previousDay.ot) !== JSON.stringify(day.ot)) {
+          delete progress.ot;
+          if (day.ot.length && day.ot.every(reading => completedChapters.has(`${reading.book} ${reading.chapter}`))) {
+            progress.ot = true;
+          }
+        }
+        if (previousDay.torahCompletion || day.torahCompletion) {
+          delete progress.torahCompletion;
+          if (day.torahCompletion && completedTorah) progress.torahCompletion = true;
+        }
+        if (Object.keys(progress).length) appState.progress[date] = progress;
+      });
+    } catch (error) {
+      console.warn('The previous reading plan could not be compared during migration.', error);
+      return;
+    }
+  }
+
+  appState.readingPlanMigrations = { ...migrations, [hYear]: PLAN_KEY_PREFIX };
   saveAppState();
 }
 
@@ -831,7 +876,10 @@ async function initApp() {
     document.getElementById('generating-overlay').classList.add('hidden');
   }
   
+  const previousPlanRaw = safeStorageGet(PREVIOUS_PLAN_KEY_PREFIX + hYear) || safeStorageGet(LEGACY_PLAN_KEY_PREFIX + hYear);
+  const previousProgress = JSON.parse(JSON.stringify(appState.progress));
   migrateProgressToIsraelPlan(hYear, plan);
+  migrateProgressToUpdatedPlan(hYear, plan, previousPlanRaw, previousProgress);
   currentPlan = plan;
 
   // 오늘 날짜가 플랜 범위 내에 있으면 오늘을 선택, 없으면 플랜 첫날 선택

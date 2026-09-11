@@ -1908,6 +1908,25 @@ function getHebrewDateNatively(dateStr) {
 
 let calendarCurrentDate = null; // 캘린더에서 보고 있는 현재 월 기준일
 
+const CALENDAR_DOUBLE_PARASHA_PARTS = Object.freeze({
+  'vayakhel-pekudei': ['Vayakhel', 'Pekudei'],
+  'tazria-metzora': ['Tazria', 'Metzora'],
+  'achrei mot-kedoshim': ['Achrei Mot', 'Kedoshim'],
+  'behar-bechukotai': ['Behar', 'Bechukotai'],
+  'chukat-balak': ['Chukat', 'Balak'],
+  'matot-masei': ['Matot', 'Masei'],
+  'nitzavim-vayeilech': ['Nitzavim', 'Vayeilech']
+});
+
+function getCalendarParashaDisplayParts(name) {
+  const cleanName = String(name || '')
+    .replace(/^Parashat\s+|^Parashas\s+/i, '')
+    .replace(/[\u2018\u2019\u02BC]/g, "'")
+    .trim();
+  const doublePortion = CALENDAR_DOUBLE_PARASHA_PARTS[cleanName.toLowerCase()];
+  return doublePortion ? [...doublePortion] : [cleanName];
+}
+
 // 대시보드 캘린더 렌더링
 function renderCalendar() {
   if (!calendarCurrentDate) {
@@ -2034,7 +2053,17 @@ function renderCalendar() {
     torahCell.style.gridColumn = '8';
     torahCell.style.gridRow = String(weekGridRow);
     if (weekParasha) {
-      torahCell.innerHTML = `<span class="calendar-cell-parasha" title="Weekly Torah Portion: ${weekParashaFull}">${weekParasha}</span>`;
+      const parashaLabel = document.createElement('span');
+      const displayParts = getCalendarParashaDisplayParts(weekParasha);
+      parashaLabel.className = `calendar-cell-parasha${displayParts.length > 1 ? ' is-double' : ''}`;
+      parashaLabel.title = `Weekly Torah Portion: ${weekParashaFull}`;
+      displayParts.forEach(part => {
+        const partLabel = document.createElement('span');
+        partLabel.className = 'calendar-parasha-part';
+        partLabel.textContent = part;
+        parashaLabel.appendChild(partLabel);
+      });
+      torahCell.appendChild(parashaLabel);
     } else {
       torahCell.innerHTML = `<span style="color: var(--text-dim); font-size: 0.7rem;">-</span>`;
     }

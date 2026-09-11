@@ -3790,7 +3790,7 @@ body.light-mode .original-sentence-token:focus-visible {
   .calendar-grid-cells {
     width: 100%;
     min-width: 0;
-    grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(46px, 0.82fr);
+    grid-template-columns: repeat(7, minmax(0, 1fr)) minmax(58px, 1.1fr);
   }
 
   .layout-left-card:has(.calendar-grid-cells) {
@@ -5064,6 +5064,38 @@ body.light-mode .parasha-modal-tabs button.active {
   background: #ffffff;
 }
 
+/* Keep long and combined Torah portion names inside the calendar column. */
+.calendar-cell.torah-column-cell {
+  min-width: 0;
+  overflow: hidden;
+  padding-inline: 4px;
+}
+
+.calendar-cell-parasha {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-inline: 0;
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+}
+
+.calendar-parasha-part {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-cell-parasha.is-double .calendar-parasha-part + .calendar-parasha-part {
+  border-top: 1px solid rgba(185, 200, 165, 0.22);
+  padding-top: 1px;
+}
+
 @media (max-width: 700px) {
   .parasha-modal-tabs button {
     font-size: 0.76rem;
@@ -5073,5 +5105,9 @@ body.light-mode .parasha-modal-tabs button.active {
   .torah-guide-topic {
     gap: 0.55rem;
     padding: 0.65rem;
+  }
+
+  .calendar-cell.torah-column-cell {
+    padding-inline: 2px;
   }
 }

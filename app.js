@@ -17,7 +17,6 @@ let appState = {
   progress: {}, // { 'YYYY-MM-DD': { torah: true, megillah: false, ot: false... } }
   familyName: DEFAULT_FAMILY_NAME,
   theme: "dark",
-  overrideToday: null, // 테스트용 임의 오늘 날짜 (YYYY-MM-DD)
   customEvents: [],
   events: []
 };
@@ -67,7 +66,6 @@ function createDefaultAppState() {
     progress: {},
     familyName: DEFAULT_FAMILY_NAME,
     theme: "dark",
-    overrideToday: null,
     customEvents: [],
     events: [],
     calendarStandard: null,
@@ -85,6 +83,7 @@ function normalizeAppState(rawState = {}) {
     ...createDefaultAppState(),
     ...(rawState && typeof rawState === 'object' ? rawState : {})
   };
+  delete state.overrideToday;
 
   if (!state.progress || typeof state.progress !== 'object' || Array.isArray(state.progress)) {
     state.progress = {};
@@ -543,9 +542,6 @@ function getParashaDetail(name) {
 
 // 유틸: 오늘 날짜 YYYY-MM-DD
 function getTodayStr() {
-  if (appState && appState.overrideToday) {
-    return appState.overrideToday;
-  }
   const d = new Date();
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
   return d.toISOString().split('T')[0];
@@ -710,14 +706,22 @@ function formatDateWithWeekday(dateStr) {
   return `${parseInt(p[1], 10)}/${parseInt(p[2], 10)}(${days[d.getUTCDay()]})`;
 }
 
+function getDayReadingFields(dayData) {
+  return ['torah', 'torahCompletion', 'megillah', 'ot', 'nt'].filter(field =>
+    Array.isArray(dayData?.[field]) ? dayData[field].length > 0 : !!dayData?.[field]
+  );
+}
+
 // 하루치 일정이 전부 다 읽었는지 체크
-function isDayCompleted(dayData, progressDay) {
-  if (dayData.torah && !progressDay.torah) return false;
-  if (dayData.torahCompletion && !progressDay.torahCompletion) return false;
-  if (dayData.megillah && !progressDay.megillah) return false;
-  if (dayData.ot && dayData.ot.length > 0 && !progressDay.ot) return false;
-  if (dayData.nt && dayData.nt.length > 0 && !progressDay.nt) return false;
-  return true;
+function isDayCompleted(dayData, progressDay = {}) {
+  const fields = getDayReadingFields(dayData);
+  return fields.length > 0 && fields.every(field => !!progressDay[field]);
+}
+
+function getCalendarReadingStatus(dateStr, dayData, progressDay = {}, todayStr = getTodayStr()) {
+  if (!getDayReadingFields(dayData).length) return '';
+  if (isDayCompleted(dayData, progressDay)) return 'completed';
+  return dateStr <= todayStr ? 'incomplete' : 'upcoming';
 }
 
 // 전체 통계 계산 (전체 체크항목 개수 기준 진율 + 완료 일수)
@@ -892,7 +896,7 @@ async function initApp() {
   if (!appUiInitialized) {
     setupTabs();
     setupScheduleViewActions();
-    setupProgressShareActions();
+    setupReflectionShareActions();
     setupModalEventActions();
     setupParashaModalActions();
     setupModalAccessibility();
@@ -966,9 +970,7 @@ async function checkDateTransition() {
     console.log("Real-time date transition detected. Refreshing app date from " + lastCheckedDateStr + " to " + currentTodayStr);
     lastCheckedDateStr = currentTodayStr;
     
-    if (!appState || !appState.overrideToday) {
-      activeDateStr = currentTodayStr;
-    }
+    activeDateStr = currentTodayStr;
 
     if (!currentPlan || !currentPlan[currentTodayStr]) {
       appInitializationPromise = null;
@@ -1081,46 +1083,6 @@ function setupTabs() {
     }
   });
 
-  // 날짜 설정 버튼 리스너
-  document.getElementById('btn-save-override-date').addEventListener('click', () => {
-    const val = document.getElementById('input-override-date').value;
-    if (val) {
-      appState.overrideToday = val;
-      activeDateStr = val; // 대시보드 활성 날짜도 변경
-      calendarCurrentDate = null; // 달력 월 초기화
-      saveAppState();
-      alert(`오늘 날짜가 ${val}로 지정되었습니다.`);
-      if (!currentPlan || !currentPlan[val]) {
-        appInitializationPromise = null;
-        enterApplication({ resetActiveTab: false });
-      } else {
-        renderDashboard();
-      }
-    }
-  });
-
-  document.getElementById('btn-reset-override-date').addEventListener('click', () => {
-    appState.overrideToday = null;
-    calendarCurrentDate = null; // 달력 월 초기화
-    
-    // 실제 오늘 날짜 구하기
-    const d = new Date();
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    const realToday = d.toISOString().split('T')[0];
-    
-    activeDateStr = realToday;
-    saveAppState();
-    
-    document.getElementById('input-override-date').value = realToday;
-    alert(`실제 오늘 날짜(${realToday})로 리셋되었습니다.`);
-    if (!currentPlan || !currentPlan[realToday]) {
-      appInitializationPromise = null;
-      enterApplication({ resetActiveTab: false });
-    } else {
-      renderDashboard();
-    }
-  });
-
   // Ticker 일괄 완료 체크 버튼
   document.getElementById('btn-ticker-check').addEventListener('click', () => {
     const todayStr = getTodayStr();
@@ -1207,6 +1169,13 @@ function setupScheduleViewActions() {
     const group = getWeeklyReadingGroups(date).find(item => item.type === button.dataset.readingType);
     if (group) openBibleReader(group.title, group.passageData);
   });
+  document.getElementById('weekly-schedule-container').addEventListener('change', event => {
+    const checkbox = event.target.closest('[data-completion-date]');
+    if (!checkbox) return;
+    const date = checkbox.dataset.completionDate;
+    toggleDayCompletion(date, checkbox.checked);
+    document.querySelector(`[data-completion-date="${date}"]`)?.focus({ preventScroll: true });
+  });
 
   document.querySelectorAll('[data-annual-status]').forEach(button => {
     button.addEventListener('click', () => {
@@ -1226,91 +1195,92 @@ function setupScheduleViewActions() {
   });
 }
 
-function getProgressShareContent() {
-  const todayStr = getTodayStr();
-  const stats = calculateStats();
-  const [year, month, day] = todayStr.split('-').map(Number);
-  const planDay = currentPlan[todayStr] ? getPlanDayNumber(todayStr) : getPlanDayNumber(activeDateStr);
-  const familyName = appState.familyName || DEFAULT_FAMILY_NAME;
-  const note = document.getElementById('progress-share-note').value.trim();
-  const lines = [
-    `${familyName} 성경 통독`,
-    `${year}년 ${month}월 ${day}일 · ${planDay}일차`,
-    `전체 진도 ${stats.percentage}% (${stats.completedDays}일 / ${stats.totalDays || getPlanTotalDays()}일)`
-  ];
-  if (note) lines.push(`묵상: ${note}`);
-  return {
-    title: `${familyName} 성경 통독 진도`,
-    text: lines.join('\n'),
-    url: location.protocol === 'file:'
-      ? 'https://chanistics.github.io/bible-reading-plan-v3/'
-      : `${location.origin}${location.pathname}`
-  };
+function getReflectionShareContent() {
+  return { text: document.getElementById('reflection-share-note').value.trim() };
 }
 
-function openProgressShareModal() {
-  const modal = document.getElementById('progress-share-modal');
-  const stats = calculateStats();
-  const todayStr = getTodayStr();
-  const planDay = currentPlan[todayStr] ? getPlanDayNumber(todayStr) : getPlanDayNumber(activeDateStr);
-  document.getElementById('progress-share-preview').innerHTML = `
-    <span class="progress-share-preview-label">${escapeHtml(appState.familyName || DEFAULT_FAMILY_NAME)}</span>
-    <strong>${stats.percentage}%</strong>
-    <span>${planDay}일차 · ${stats.completedDays} / ${stats.totalDays || getPlanTotalDays()}일 완료</span>`;
-  document.getElementById('progress-share-note').value = '';
-  document.getElementById('progress-share-status').textContent = '';
-  document.getElementById('btn-submit-share').textContent = navigator.share ? '공유 앱 선택' : '공유 문구 복사';
+function openReflectionShareModal() {
+  const modal = document.getElementById('reflection-share-modal');
+  document.getElementById('reflection-share-status').textContent = '';
+  document.getElementById('reflection-share-note').removeAttribute('aria-invalid');
+  const submit = document.getElementById('btn-submit-share');
+  submit.textContent = navigator.share ? '공유하기' : '묵상 복사';
+  submit.disabled = document.getElementById('reflection-share-note').readOnly || !getReflectionShareContent().text;
   modal.classList.remove('hidden');
   focusAccessibleModal(modal);
 }
 
 async function copyShareText(content) {
-  const fullText = `${content.text}\n${content.url}`;
   if (navigator.clipboard && window.isSecureContext) {
-    await navigator.clipboard.writeText(fullText);
-    return;
+    try {
+      await navigator.clipboard.writeText(content.text);
+      return;
+    } catch {
+      // Local-file browsers may deny clipboard access; try the legacy copy path.
+    }
   }
+  const focused = document.activeElement;
   const textarea = document.createElement('textarea');
-  textarea.value = fullText;
+  textarea.value = content.text;
   textarea.setAttribute('readonly', '');
   textarea.style.position = 'fixed';
   textarea.style.opacity = '0';
   document.body.appendChild(textarea);
-  textarea.select();
-  const copied = document.execCommand('copy');
-  textarea.remove();
-  if (!copied) throw new Error('Copy command was rejected.');
+  try {
+    textarea.select();
+    if (!document.execCommand('copy')) throw new Error('Copy command was rejected.');
+  } finally {
+    textarea.remove();
+    focused?.focus({ preventScroll: true });
+  }
 }
 
-async function shareProgress() {
-  const status = document.getElementById('progress-share-status');
+async function shareReflection() {
+  const note = document.getElementById('reflection-share-note');
+  const status = document.getElementById('reflection-share-status');
   const submit = document.getElementById('btn-submit-share');
-  const content = getProgressShareContent();
+  if (note.readOnly) return;
+  const content = getReflectionShareContent();
   status.textContent = '';
+  if (!content.text) {
+    status.textContent = '묵상 내용을 입력해주세요.';
+    note.setAttribute('aria-invalid', 'true');
+    note.focus();
+    return;
+  }
+  note.removeAttribute('aria-invalid');
+  note.readOnly = true;
   submit.disabled = true;
   try {
     if (navigator.share) {
       await navigator.share(content);
-      closeAccessibleModal(document.getElementById('progress-share-modal'));
+      note.value = '';
+      closeAccessibleModal(document.getElementById('reflection-share-modal'));
     } else {
       await copyShareText(content);
-      status.textContent = '공유 문구가 복사되었습니다.';
+      status.textContent = '묵상이 복사되었습니다.';
     }
   } catch (error) {
-    if (error && error.name !== 'AbortError') {
+    if (error?.name !== 'AbortError') {
       status.textContent = '공유하지 못했습니다. 다시 시도해주세요.';
-      console.error('Progress sharing failed.', error);
+      console.error('Reflection sharing failed.', error);
     }
   } finally {
-    submit.disabled = false;
+    note.readOnly = false;
+    submit.disabled = !note.value.trim();
   }
 }
 
-function setupProgressShareActions() {
-  const modal = document.getElementById('progress-share-modal');
-  document.getElementById('btn-share-progress').addEventListener('click', openProgressShareModal);
+function setupReflectionShareActions() {
+  const modal = document.getElementById('reflection-share-modal');
+  document.getElementById('btn-share-reflection').addEventListener('click', openReflectionShareModal);
   document.getElementById('btn-close-share-modal').addEventListener('click', () => closeAccessibleModal(modal));
-  document.getElementById('btn-submit-share').addEventListener('click', shareProgress);
+  document.getElementById('btn-submit-share').addEventListener('click', shareReflection);
+  document.getElementById('reflection-share-note').addEventListener('input', event => {
+    document.getElementById('btn-submit-share').disabled = event.target.readOnly || !event.target.value.trim();
+    document.getElementById('reflection-share-status').textContent = '';
+    event.target.removeAttribute('aria-invalid');
+  });
   modal.addEventListener('click', event => {
     if (event.target === modal) closeAccessibleModal(modal);
   });
@@ -1378,25 +1348,10 @@ function setupModalAccessibility() {
 
 // 특정 일자의 모든 통독 항목 일괄 토글
 function setDayCompletion(dateStr, markComplete) {
-  const dayData = currentPlan[dateStr];
-  if (!dayData) return;
-  
+  const fields = getDayReadingFields(currentPlan[dateStr]);
+  if (!fields.length) return;
   if (!appState.progress[dateStr]) appState.progress[dateStr] = {};
-  
-  if (markComplete) {
-    if (dayData.torah) appState.progress[dateStr].torah = true;
-    if (dayData.torahCompletion) appState.progress[dateStr].torahCompletion = true;
-    if (dayData.megillah) appState.progress[dateStr].megillah = true;
-    if (dayData.ot && dayData.ot.length > 0) appState.progress[dateStr].ot = true;
-    if (dayData.nt && dayData.nt.length > 0) appState.progress[dateStr].nt = true;
-  } else {
-    if (dayData.torah) appState.progress[dateStr].torah = false;
-    if (dayData.torahCompletion) appState.progress[dateStr].torahCompletion = false;
-    if (dayData.megillah) appState.progress[dateStr].megillah = false;
-    if (dayData.ot && dayData.ot.length > 0) appState.progress[dateStr].ot = false;
-    if (dayData.nt && dayData.nt.length > 0) appState.progress[dateStr].nt = false;
-  }
-  
+  fields.forEach(field => { appState.progress[dateStr][field] = markComplete; });
 }
 
 function toggleDayCompletion(dateStr, markComplete) {
@@ -1668,7 +1623,14 @@ function renderWeeklySchedule(todayStr, days) {
           <span class="sched-calendar-date">${month}.${day}</span>
           <span class="weekly-day-state">${isCompleted ? '완료' : isToday ? '오늘' : ''}</span>
         </span>
-        <span class="sched-day-readings">${readings.join('')}</span>`;
+        <span class="sched-day-readings">${readings.join('')}</span>
+        <label class="weekly-day-completion">
+          <input type="checkbox" data-completion-date="${dateStr}" aria-label="${month}월 ${day}일 통독 완료"${isCompleted ? ' checked' : ''}>
+          <span>${isCompleted ? '완료' : '완료 체크'}</span>
+        </label>`;
+
+    row.querySelector('[data-completion-date]').indeterminate = !isCompleted &&
+      getDayReadingFields(dayData).some(field => !!appState.progress[dateStr]?.[field]);
 
     scheduleContainer.appendChild(row);
   });
@@ -2052,9 +2014,6 @@ function renderSettingsView() {
   if (radio) {
     radio.checked = true;
   }
-  // 기준일 인풋값 로드
-  const todayVal = appState.overrideToday || getTodayStr();
-  document.getElementById('input-override-date').value = todayVal;
 }
 
 // 브라우저 내장 Intl API를 이용한 유대력 날짜 변환 (캘린더 셀 렌더링용)
@@ -2177,13 +2136,10 @@ function renderCalendar() {
         cell.style.gridRow = String(weekGridRow);
         
         const dayPlan = getCalendarDayPlan(dateStr);
-        let isCompleted = false;
+        const readingStatus = getCalendarReadingStatus(dateStr, dayPlan, appState.progress[dateStr] || {}, todayStr);
         let holidayName = '';
         
         if (dayPlan) {
-          const progressDay = appState.progress[dateStr] || {};
-          isCompleted = isDayCompleted(dayPlan, progressDay);
-          
           if (dayPlan.holidays && dayPlan.holidays.length > 0) {
             for (const h of dayPlan.holidays) {
               const name = getBiblicalHolidayName(h.name);
@@ -2202,7 +2158,12 @@ function renderCalendar() {
           }
         }
         
-        if (isCompleted) cell.classList.add('completed');
+        if (readingStatus) cell.classList.add(readingStatus);
+        const readingStatusLabel = { completed: '통독 완료', incomplete: '통독 미완료', upcoming: '통독 예정' }[readingStatus];
+        if (readingStatusLabel) {
+          cell.title = `${month + 1}월 ${d}일 · ${readingStatusLabel}`;
+          cell.setAttribute('aria-label', cell.title);
+        }
         if (dateStr === todayStr) cell.classList.add('today-highlight');
         if (dateStr === activeDateStr) cell.classList.add('active-highlight');
         

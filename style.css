@@ -3369,7 +3369,6 @@ input,
 textarea,
 select,
 #input-family-name,
-#input-override-date,
 #input-modal-event-text,
 #input-modal-start-date,
 #input-modal-end-date {
@@ -4136,7 +4135,7 @@ body:has(#bible-reader-modal:not(.hidden)) {
   transition: width 240ms ease;
 }
 
-.btn-share-progress {
+.btn-share-reflection {
   align-self: flex-start;
   border: 0;
   background: transparent;
@@ -4148,7 +4147,7 @@ body:has(#bible-reader-modal:not(.hidden)) {
   cursor: pointer;
 }
 
-.btn-share-progress:hover {
+.btn-share-reflection:hover {
   color: var(--gold);
 }
 
@@ -4592,65 +4591,47 @@ body:has(#bible-reader-modal:not(.hidden)) {
   text-align: center;
 }
 
-.progress-share-modal-content {
+.reflection-share-modal-content {
   width: min(92vw, 480px);
 }
 
-.progress-share-body {
+.reflection-share-body {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
 }
 
-.progress-share-preview {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 0.15rem 1rem;
-  padding: 1rem 0;
-  border-top: 1px solid var(--line-soft);
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.progress-share-preview-label {
-  color: var(--gold);
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-
-.progress-share-preview strong {
-  grid-row: 1 / span 2;
-  grid-column: 2;
-  color: var(--ink-strong);
-  font-size: 2rem;
-  line-height: 1;
-}
-
-.progress-share-preview > span:last-child,
-.progress-share-label,
-.progress-share-status {
+.reflection-share-label,
+.reflection-share-status {
   color: var(--ink-muted);
-  font-size: 0.74rem;
+  font-size: 0.875rem;
 }
 
-.progress-share-note {
+.reflection-share-note {
   min-height: 112px;
+  font-size: 1rem;
+  line-height: 1.6;
   resize: vertical;
 }
 
-.progress-share-footer {
+.reflection-share-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
 }
 
-.progress-share-status {
+.reflection-share-status {
   min-height: 1.2rem;
 }
 
-.progress-share-submit {
+.reflection-share-submit {
   flex: 0 0 auto;
+}
+
+.reflection-share-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 body.light-mode .stat-progress-track,
@@ -4759,12 +4740,12 @@ body.light-mode .annual-week-summary {
     grid-row: 1 / span 2;
   }
 
-  .progress-share-footer {
+  .reflection-share-footer {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .progress-share-submit {
+  .reflection-share-submit {
     width: 100%;
   }
 }
@@ -5198,6 +5179,33 @@ body.light-mode .parasha-modal-tabs button.active {
   font-size: 0.65rem;
 }
 
+.weekly-day-completion {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink-normal);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.weekly-day-completion input {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: #38834d;
+  cursor: pointer;
+}
+
+.weekly-day-completion input:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
 .weekly-workspace .sched-day-readings {
   flex-direction: column;
   gap: 0.65rem;
@@ -5394,4 +5402,59 @@ body.light-mode .weekly-workspace .sched-reading.type-nt .sched-reading-label { 
   .calendar-cell.torah-column-cell {
     padding-inline: 2px;
   }
+}
+
+/* Completion fills remain visible under today's and the selected day's outline. */
+#calendar-grid-cells,
+.calendar-reading-legend {
+  --reading-completed-bg: #24452f;
+  --reading-completed-border: #57956a;
+  --reading-incomplete-bg: #4e282c;
+  --reading-incomplete-border: #ae6169;
+}
+
+body.light-mode #calendar-grid-cells,
+body.light-mode .calendar-reading-legend {
+  --reading-completed-bg: #d7eddc;
+  --reading-completed-border: #7eac88;
+  --reading-incomplete-bg: #f6dadd;
+  --reading-incomplete-border: #cc9298;
+}
+
+#calendar-grid-cells .calendar-cell.completed,
+.calendar-reading-legend .completed {
+  background: var(--reading-completed-bg);
+  border-color: var(--reading-completed-border);
+}
+
+#calendar-grid-cells .calendar-cell.incomplete,
+.calendar-reading-legend .incomplete {
+  background: var(--reading-incomplete-bg);
+  border-color: var(--reading-incomplete-border);
+}
+
+#calendar-grid-cells .calendar-cell.active-highlight {
+  box-shadow: inset 0 0 0 2px var(--gold);
+}
+
+.calendar-reading-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: 0.75rem;
+  color: var(--ink-normal);
+  font-size: 0.875rem;
+}
+
+.calendar-reading-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.calendar-reading-legend i {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
 }

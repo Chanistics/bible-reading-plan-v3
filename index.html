@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="P274">
   
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@700;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=54">
+  <link rel="stylesheet" href="style.css?v=55">
   <link rel="icon" href="icon-192.png" type="image/png">
   <link rel="manifest" href="manifest.json">
 </head>
@@ -69,7 +69,7 @@
             <div id="stat-progress-track" class="stat-progress-track" role="progressbar" aria-label="전체 통독 진도" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
               <span id="stat-progress-bar" class="stat-progress-bar"></span>
             </div>
-            <button id="btn-share-progress" class="btn-share-progress" type="button">공유하기</button>
+            <button id="btn-share-reflection" class="btn-share-reflection" type="button">묵상 나누기</button>
           </div>
         </div>
       </div>
@@ -114,6 +114,11 @@
             </div>
             <div id="calendar-grid-cells" class="calendar-grid-cells">
               <!-- Calendar cells injected here -->
+            </div>
+            <div class="calendar-reading-legend" aria-label="통독 상태">
+              <span><i class="completed" aria-hidden="true"></i>완료</span>
+              <span><i class="incomplete" aria-hidden="true"></i>미완료</span>
+              <span><i class="upcoming" aria-hidden="true"></i>예정</span>
             </div>
             
             <!-- Selected Date Events Detail Section -->
@@ -269,17 +274,6 @@
           </div>
           
           <div style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1.5rem; margin-top: 1.5rem; margin-bottom: 1.5rem;">
-            <h5 style="color: var(--text-main); margin-bottom: 0.5rem;">통독 기준일 설정 (테스트용)</h5>
-            <p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 1rem;">특정 날짜에 절기와 통독 본문이 대시보드에 어떻게 반영되는지 검증하기 위해 오늘 날짜를 임의로 변경할 수 있습니다.</p>
-            <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-              <label class="sr-only" for="input-override-date">통독 기준일</label>
-              <input type="date" id="input-override-date" class="form-control form-control-date">
-              <button id="btn-save-override-date" class="btn-primary">날짜 지정</button>
-              <button id="btn-reset-override-date" class="btn-secondary" style="border-color: rgba(255,255,255,0.15);">오늘로 리셋</button>
-            </div>
-          </div>
-          
-          <div style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1.5rem; margin-top: 1.5rem; margin-bottom: 1.5rem;">
             <h5 style="color: var(--text-main); margin-bottom: 0.5rem;">화면 테마 설정</h5>
             <div style="display: flex; gap: 1.5rem; margin-top: 0.75rem;">
               <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: var(--text-main);">
@@ -394,20 +388,19 @@
       </div>
     </div>
 
-    <!-- Progress Share Modal -->
-    <div id="progress-share-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="progress-share-title">
-      <div class="modal-content progress-share-modal-content">
+    <!-- Reflection Share Modal -->
+    <div id="reflection-share-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="reflection-share-title">
+      <div class="modal-content reflection-share-modal-content">
         <div class="modal-header">
-          <h3 id="progress-share-title" class="modal-title">통독 진도 공유</h3>
-          <button id="btn-close-share-modal" class="btn-close" type="button" aria-label="진도 공유 닫기">&times;</button>
+          <h3 id="reflection-share-title" class="modal-title">묵상 나누기</h3>
+          <button id="btn-close-share-modal" class="btn-close" type="button" aria-label="묵상 나누기 닫기">&times;</button>
         </div>
-        <div class="modal-body progress-share-body">
-          <div id="progress-share-preview" class="progress-share-preview"></div>
-          <label for="progress-share-note" class="progress-share-label">짧은 묵상 또는 느낌</label>
-          <textarea id="progress-share-note" class="form-control progress-share-note" maxlength="200" rows="4" placeholder="오늘 마음에 남은 말씀이나 느낌을 적어보세요."></textarea>
-          <div class="progress-share-footer">
-            <span id="progress-share-status" class="progress-share-status" role="status" aria-live="polite"></span>
-            <button id="btn-submit-share" class="btn-primary progress-share-submit" type="button">카카오톡 공유</button>
+        <div class="modal-body reflection-share-body">
+          <label for="reflection-share-note" class="reflection-share-label">짧은 묵상 또는 느낌</label>
+          <textarea id="reflection-share-note" class="form-control reflection-share-note" maxlength="200" rows="4" required aria-describedby="reflection-share-status" placeholder="오늘 마음에 남은 말씀이나 느낌을 적어보세요."></textarea>
+          <div class="reflection-share-footer">
+            <span id="reflection-share-status" class="reflection-share-status" role="status" aria-live="polite"></span>
+            <button id="btn-submit-share" class="btn-primary reflection-share-submit" type="button" disabled>공유하기</button>
           </div>
         </div>
       </div>
@@ -439,7 +432,7 @@
   <script src="hebcal.js"></script>
   <script src="generator.js?v=2"></script>
   <script src="original-language-data.js?v=1"></script>
-  <script src="app.js?v=64"></script>
+  <script src="app.js?v=65"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

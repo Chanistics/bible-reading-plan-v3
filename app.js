@@ -27,9 +27,52 @@ let bundledCalendarPlanByDate = null;
 const memoryStorage = new Map();
 let appInitializationPromise = null;
 let appUiInitialized = false;
+let lastPersistedAppState = null;
 const annualViewFilters = {
   status: 'all',
   book: 'all'
+};
+const UPDATE_VIEW_KEY = 'p274_update_view';
+
+function readUpdateView() {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(UPDATE_VIEW_KEY) || 'null');
+    sessionStorage.removeItem(UPDATE_VIEW_KEY);
+    return value && Date.now() - value.at < 3600000 ? value : null;
+  } catch (_) { return null; }
+}
+
+window.AppUpdateBridge = {
+  isSafe() {
+    if (document.querySelector('.modal-overlay:not(.hidden), #generating-overlay:not(.hidden), #tab-content-settings.active')) return false;
+    if (document.getElementById('reflection-share-note')?.readOnly) return false;
+    const nameInput = document.getElementById('input-family-name');
+    if (nameInput?.dataset.updateDirty === 'true' && nameInput.value.trim() !== appState.familyName) return false;
+    if (document.getElementById('dashboard-page')?.classList.contains('active') && (!appUiInitialized || !currentPlan)) return false;
+    // All local edits must be saved; a newer valid record from another tab is preserved on reload.
+    if (!appUiInitialized) return true;
+    if (lastPersistedAppState !== JSON.stringify(appState)) return false;
+    try {
+      const saved = JSON.parse(localStorage.getItem(STATE_KEY));
+      return Boolean(saved?.progress && typeof saved.progress === 'object' && !Array.isArray(saved.progress));
+    } catch (_) { return false; }
+  },
+  prepareReload() {
+    if (!this.isSafe()) return false;
+    try {
+      const value = JSON.stringify({
+        at: Date.now(), tab: appState.activeTab, date: activeDateStr, calendar: calendarCurrentDate?.toISOString(),
+        filters: annualViewFilters, x: window.scrollX, y: window.scrollY,
+        reflection: document.getElementById('reflection-share-note')?.value || '',
+        weeklyScroll: document.querySelector('.weekly-days-scroll')?.scrollLeft || 0,
+        expandedFestivals: Array.from(document.querySelectorAll('.festival-service[open]'), element => ({
+          container: element.parentElement.id, id: element.dataset.festivalId
+        }))
+      });
+      sessionStorage.setItem(UPDATE_VIEW_KEY, value);
+      return sessionStorage.getItem(UPDATE_VIEW_KEY) === value;
+    } catch (_) { return false; }
+  }
 };
 
 function safeStorageGet(key) {
@@ -143,7 +186,8 @@ function loadAppState() {
 
 function saveAppState() {
   appState = normalizeAppState(appState);
-  safeStorageSet(STATE_KEY, JSON.stringify(appState));
+  const value = JSON.stringify(appState);
+  if (safeStorageSet(STATE_KEY, value)) lastPersistedAppState = value;
 }
 
 function migrateProgressToIsraelPlan(hYear, israelPlan) {
@@ -893,6 +937,15 @@ async function initApp() {
     activeDateStr = getPlanDates()[0];
   }
 
+  const updateView = readUpdateView();
+  if (updateView) {
+    if (['dashboard', 'reading', 'weekly', 'annual', 'settings'].includes(updateView.tab)) appState.activeTab = updateView.tab;
+    if (currentPlan[updateView.date]) activeDateStr = updateView.date;
+    if (updateView.calendar && !Number.isNaN(Date.parse(updateView.calendar))) calendarCurrentDate = new Date(updateView.calendar);
+    if (updateView.filters) Object.assign(annualViewFilters, updateView.filters);
+    document.getElementById('reflection-share-note').value = updateView.reflection || '';
+  }
+
   if (!appUiInitialized) {
     setupTabs();
     setupScheduleViewActions();
@@ -912,6 +965,15 @@ async function initApp() {
     await renderDashboard();
   }
   restoreBibleReaderAfterReturn();
+  if (updateView) requestAnimationFrame(() => requestAnimationFrame(() => {
+    const openIds = new Set((updateView.expandedFestivals || []).map(item => `${item.container}:${item.id}`));
+    document.querySelectorAll('.festival-service').forEach(element => {
+      element.open = openIds.has(`${element.parentElement.id}:${element.dataset.festivalId}`);
+    });
+    const weeklyList = document.querySelector('.weekly-days-scroll');
+    if (weeklyList) weeklyList.scrollLeft = updateView.weeklyScroll || 0;
+    window.scrollTo(updateView.x || 0, updateView.y || 0);
+  }));
   
   // 실시간 자정 타이머 개시
   setupMidnightTimer();
@@ -1055,10 +1117,14 @@ function setupTabs() {
   });
 
   // 설정 저장 버튼
+  document.getElementById('input-family-name').addEventListener('input', event => {
+    event.target.dataset.updateDirty = 'true';
+  });
   document.getElementById('btn-save-family-name').addEventListener('click', () => {
     const val = document.getElementById('input-family-name').value.trim();
     appState.familyName = val || DEFAULT_FAMILY_NAME;
     saveAppState();
+    document.getElementById('input-family-name').dataset.updateDirty = 'false';
     alert('성경읽기표 이름이 저장되었습니다.');
     renderDashboard();
   });
@@ -1530,8 +1596,79 @@ function getParashaExplanationHtml(pName, todayPlan) {
   return detailHtml;
 }
 
+async function renderFestivalReadings(containerId, dates) {
+  const container = document.getElementById(containerId);
+  if (!container || !window.FestivalReadings) return;
+  const token = Symbol('festival-render');
+  container.festivalRenderToken = token;
+  try {
+    const events = await window.FestivalReadings.forDates(dates);
+    if (container.festivalRenderToken !== token) return;
+    const expanded = new Map(Array.from(container.querySelectorAll('details[data-festival-id]'),
+      element => [element.dataset.festivalId, element.open]));
+    container.classList.toggle('hidden', !events.length);
+    container.replaceChildren();
+    if (!events.length) return;
+    const heading = document.createElement('div');
+    heading.className = 'festival-heading';
+    heading.innerHTML = '<h4>절기 특별 본문</h4><span>추가 읽기 · 진도 제외</span>';
+    container.appendChild(heading);
+    const standard = document.createElement('p');
+    standard.className = 'festival-standard';
+    standard.textContent = '이스라엘 일반 지역 · Hebcal 기본 독서';
+    container.appendChild(standard);
+    const labels = { torah: '토라', maftir: '추가 봉독', haftarah: '예언서', megillah: '메길롯' };
+    events.forEach((event, index) => {
+      const details = document.createElement('details');
+      details.className = 'festival-service';
+      details.dataset.festivalId = event.id;
+      details.open = expanded.has(event.id) ? expanded.get(event.id) : dates.length === 1 || index === 0;
+      const summary = document.createElement('summary');
+      summary.innerHTML = `<span class="festival-date">${escapeHtml(formatDateWithWeekday(event.date))}</span>
+        <span class="festival-name">${escapeHtml(event.name)}<small>${escapeHtml(event.detail)}</small></span>`;
+      details.appendChild(summary);
+      const list = document.createElement('div');
+      list.className = 'festival-passages';
+      event.readings.forEach(reading => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'festival-passage';
+        button.dataset.festivalKind = reading.kind;
+        button.setAttribute('aria-label', `${event.name}, ${labels[reading.kind]}, ${reading.title} 본문 읽기`);
+        button.innerHTML = `<span class="festival-kind">${labels[reading.kind]}</span><span>${escapeHtml(reading.title)}</span><span aria-hidden="true">›</span>`;
+        button.addEventListener('click', () => openBibleReader(reading.title, reading.title));
+        list.appendChild(button);
+      });
+      details.appendChild(list);
+      const source = document.createElement('a');
+      source.className = 'festival-source';
+      source.href = event.sourceUrl;
+      source.target = '_blank';
+      source.rel = 'noopener noreferrer';
+      source.textContent = 'Hebcal · 출처';
+      details.appendChild(source);
+      container.appendChild(details);
+    });
+  } catch (error) {
+    if (container.festivalRenderToken !== token) return;
+    container.classList.remove('hidden');
+    container.replaceChildren();
+    const message = document.createElement('p');
+    message.className = 'festival-standard';
+    message.textContent = '절기 특별 본문을 불러오지 못했습니다.';
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'btn-text-action';
+    retry.textContent = '다시 시도';
+    retry.addEventListener('click', () => renderFestivalReadings(containerId, dates));
+    container.append(message, retry);
+    console.warn('Optional festival readings unavailable:', error);
+  }
+}
+
 function renderWeeklySchedule(todayStr, days) {
   const summary = getWeekSummary(activeDateStr);
+  renderFestivalReadings('weekly-festival-readings', summary.dates);
   const totalWeeks = Math.max(...getPlanDates().map(getPlanWeekNumber));
   const weekNum = getPlanWeekNumber(activeDateStr);
   const meta = window.getParashaMeta(summary.parasha);
@@ -1852,6 +1989,7 @@ async function renderDashboard() {
   }
 
   renderTodayTorahGuide(todayStr);
+  renderFestivalReadings('today-festival-readings', [todayStr]);
 
   // 6. 왼쪽 카드: 오늘의 통독 목록
   const realTodayDayOfYear = getPlanDayNumber(todayStr);

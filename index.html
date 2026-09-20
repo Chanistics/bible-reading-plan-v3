@@ -11,9 +11,10 @@
   <meta name="apple-mobile-web-app-title" content="P274">
   
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@700;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=55">
-  <link rel="icon" href="icon-192.png" type="image/png">
-  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css?v=57">
+  <link rel="icon" href="icon-192.png?v=2" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=2" sizes="180x180">
+  <link rel="manifest" href="manifest.json?v=2">
 </head>
 <body>
 
@@ -183,6 +184,7 @@
                 <div class="reading-skeleton">플랜을 불러오는 중...</div>
               </div>
             </div>
+            <section id="today-festival-readings" class="festival-readings hidden" aria-label="오늘의 절기 추가 읽기"></section>
           </div>
         </div>
       </div>
@@ -227,6 +229,7 @@
                 <!-- 7 Days rendered here -->
               </div>
               </div>
+              <section id="weekly-festival-readings" class="festival-readings hidden" aria-label="이번 주 절기 추가 읽기"></section>
             </div>
         </div>
       </div>
@@ -424,6 +427,7 @@
     </div>
   </div>
 
+  <div id="app-update-status" class="app-update-status hidden" role="status" aria-live="polite">새 버전이 준비되었습니다.</div>
   <script src="bible-data.js?v=2"></script>
   <script src="parasha-data.js"></script>
   <script src="parasha-details.js"></script>
@@ -431,14 +435,10 @@
   <script src="calendar-data.js"></script>
   <script src="hebcal.js"></script>
   <script src="generator.js?v=2"></script>
+  <script src="festival-readings-data.js?v=1"></script>
+  <script src="festival-readings.js?v=1"></script>
   <script src="original-language-data.js?v=1"></script>
-  <script src="app.js?v=65"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW Reg failed:', err));
-      });
-    }
-  </script>
+  <script src="app.js?v=67"></script>
+  <script src="app-update.js?v=1"></script>
 </body>
 </html>

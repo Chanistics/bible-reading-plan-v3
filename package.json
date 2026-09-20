@@ -3,6 +3,8 @@
   "version": "3.0.0",
   "private": true,
   "scripts": {
+    "build:release": "node tools/build-pwa-release.js",
+    "test:update": "node tools/build-pwa-release.js --check && node tools/validate-app-update.js",
     "check:syntax": "node --check app.js && node --check generator.js && node --check hebcal.js && node --check torah-guide-data.js && node --check sw.js",
     "test:plan": "node test-plan.js",
     "test:calendar": "node tools/validate-calendar-integrity.js",
@@ -11,6 +13,7 @@
     "test:guide": "node tools/validate-torah-guide-data.js",
     "test:weekly": "node tools/validate-weekly-reading.js",
     "test:progress": "node tools/validate-progress-sharing.js",
-    "test": "node --check app.js && node --check generator.js && node --check hebcal.js && node --check torah-guide-data.js && node --check sw.js && node test-plan.js && node tools/validate-calendar-integrity.js && node tools/validate-reading-plan-coverage.js && node tools/validate-original-language-data.js && node tools/validate-torah-guide-data.js && node tools/validate-weekly-reading.js && node tools/validate-progress-sharing.js"
+    "test:festivals": "node tools/validate-festival-readings.js",
+    "test": "node --check app.js && node --check app-update.js && node --check generator.js && node --check hebcal.js && node --check torah-guide-data.js && node --check sw.js && node test-plan.js && node tools/validate-calendar-integrity.js && node tools/validate-reading-plan-coverage.js && node tools/validate-original-language-data.js && node tools/validate-torah-guide-data.js && node tools/validate-weekly-reading.js && node tools/validate-progress-sharing.js && node tools/validate-festival-readings.js && node tools/build-pwa-release.js --check && node tools/validate-app-update.js"
   }
 }

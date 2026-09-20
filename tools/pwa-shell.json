@@ -5,6 +5,6 @@
   "./festival-readings-data.js?v=1", "./festival-readings.js?v=1",
   "./original-language-data.js?v=1", "./original-data/index.js", "./korean-data/index.js",
   "./original-data/hebrew-lexicon.js", "./original-data/greek-lexicon.js",
-  "./original-data/kjv1769-strong/index.js", "./app.js?v=68", "./app-update.js?v=2",
+  "./original-data/kjv1769-strong/index.js", "./app.js?v=68", "./app-update.js?v=3",
   "./manifest.json?v=2"
 ]

@@ -74,8 +74,8 @@ async function workerTests() {
 
 function clientFixture(protocol = 'https:', options = {}) {
   const listeners = {}, intervals = {}, storage = new Map();
-  let time = 100000, safe = options.safe ?? true, prepared = true, reloads = 0, activations = 0, checks = 0, prompts = 0;
-  let accept = false, multiTab = false, confirmHook;
+  let time = 100000, safe = options.safe ?? true, prepared = options.prepared ?? true, reloads = 0, activations = 0, checks = 0, prompts = 0;
+  let multiTab = options.multiTab ?? false, noticeHook;
   const button = { textContent: '', hidden: true, classList: { toggle: (_, value) => { button.hidden = value; } },
     addEventListener: (type, fn) => { listeners['button:' + type] = fn; } };
   const context = {
@@ -86,7 +86,7 @@ function clientFixture(protocol = 'https:', options = {}) {
     document: { readyState: 'complete', visibilityState: 'visible', activeElement: { matches: () => false },
       getElementById: () => button, addEventListener: (type, fn) => { listeners[type] = fn; } },
     window: { getSelection: () => '', AppUpdateBridge: { isSafe: () => safe, prepareReload: () => prepared },
-      confirm: () => { prompts++; confirmHook?.(); return accept; },
+      alert: text => { assert(!text.includes('취소')); prompts++; noticeHook?.(); },
       addEventListener: (type, fn) => { listeners[type] = fn; } },
     MessageChannel: class {
       constructor() { this.port1 = { close() {} }; this.port2 = { postMessage: data => queueMicrotask(() => this.port1.onmessage({ data })) }; }
@@ -117,7 +117,7 @@ function clientFixture(protocol = 'https:', options = {}) {
   vm.runInContext(updateSource, context);
   return { context, listeners, intervals, storage, registration, next, makeWorker, button,
     idle: () => { time += 31000; }, safe: value => { safe = value; }, prepare: value => { prepared = value; },
-    accept: value => { accept = value; }, multiTab: value => { multiTab = value; }, onConfirm: fn => { confirmHook = fn; },
+    multiTab: value => { multiTab = value; }, onNotice: fn => { noticeHook = fn; },
     result: () => ({ reloads, activations, checks, prompts }) };
 }
 
@@ -126,17 +126,17 @@ async function clientTests() {
   const local = clientFixture('file:');
   await flush();
   assert.deepEqual(Object.keys(local.intervals), []);
-  const test = clientFixture();
+  const test = clientFixture('https:', { safe: false });
   await flush();
   const apply = () => test.intervals[5000]();
   assert.equal(test.result().checks, 1, 'Every page load checks for an update');
-  assert.equal(test.result().prompts, 1, 'A downloaded update requests consent on load');
+  assert.equal(test.result().prompts, 0, 'An unsafe page waits before showing the update notice');
   await apply();
   assert.equal(test.result().activations, 0);
   test.idle(); await apply();
-  assert.equal(test.result().prompts, 1, 'Cancel must not trigger repeated dialogs');
-  assert.equal(test.result().activations, 0, 'Idle time cannot substitute for consent');
-  assert.equal(test.button.hidden, false, 'A cancelled update remains available by button');
+  assert.equal(test.result().prompts, 0, 'Idle time cannot override unsaved work');
+  assert.equal(test.result().activations, 0);
+  assert.equal(test.button.hidden, false, 'A blocked update remains available by button');
   test.idle(); test.safe(false);
   await test.listeners['button:click']();
   assert.equal(test.result().activations, 0, 'Modal/editing/memory-only state blocks activation');
@@ -148,10 +148,9 @@ async function clientTests() {
   await apply();
   assert.equal(test.result().activations, 0);
   test.context.document.activeElement.matches = () => false;
-  test.accept(true);
   await test.listeners['button:click']();
   assert.equal(test.result().activations, 1);
-  assert.equal(test.result().prompts, 2, 'The button allows explicit reconsideration');
+  assert.equal(test.result().prompts, 1, 'Dismissing the one-button notice proceeds with activation');
   test.prepare(false); await apply();
   assert.equal(test.result().reloads, 0, 'Failed snapshot must prevent reload');
   test.prepare(true); test.context.navigator.onLine = false; await apply();
@@ -163,34 +162,41 @@ async function clientTests() {
   test.idle();
   await apply(); await apply();
   assert.equal(test.result().reloads, 1);
+  assert.equal(test.result().prompts, 1, 'One notice covers both activation and reload');
   assert.equal(JSON.parse(test.storage.get('p274_update_last_reload')).release, 'new');
 
   const unsafe = clientFixture('https:', { safe: false });
   await flush();
   assert.equal(unsafe.result().prompts, 0, 'Do not interrupt unsaved work with a dialog');
-  unsafe.safe(true); unsafe.prepare(false); unsafe.accept(true);
+  unsafe.safe(true); unsafe.prepare(false);
   await unsafe.intervals[5000]();
   assert.equal(unsafe.result().activations, 0, 'Storage failure blocks activation as well as reload');
 
-  const tabs = clientFixture();
+  const tabs = clientFixture('https:', { multiTab: true });
   await flush();
-  tabs.accept(true); tabs.multiTab(true);
   await tabs.listeners['button:click']();
   assert.equal(tabs.result().activations, 0);
   assert.match(tabs.button.textContent, /다른 앱 창/);
-  tabs.multiTab(false);
+  assert.equal(tabs.result().prompts, 1, 'Retrying an acknowledged release does not repeat the notice');
   tabs.registration.waiting = tabs.makeWorker('newer');
-  tabs.accept(false);
   await tabs.intervals[5000]();
-  assert.equal(tabs.result().prompts, 3, 'A newer release needs its own consent');
+  assert.equal(tabs.result().prompts, 2, 'A newer release gets its own notice');
   assert.equal(tabs.result().activations, 0);
+  tabs.multiTab(false);
+  await tabs.intervals[5000]();
+  await tabs.intervals[5000]();
+  assert.equal(tabs.result().reloads, 1, 'Update resumes automatically when the other window closes');
 
-  const race = clientFixture();
+  const race = clientFixture('https:', { safe: false });
   await flush();
-  race.accept(true);
-  race.onConfirm(() => { race.registration.waiting = race.makeWorker('replacement'); });
+  race.safe(true);
+  race.onNotice(() => { race.registration.waiting = race.makeWorker('replacement'); });
   await race.listeners['button:click']();
   assert.equal(race.result().activations, 0, 'Never apply a worker replaced during confirmation');
+  race.onNotice(null);
+  await race.intervals[5000]();
+  assert.equal(race.result().prompts, 2);
+  assert.equal(race.result().activations, 1);
 
   const installing = clientFixture('https:', { waiting: false, installing: true });
   await flush();
@@ -209,21 +215,30 @@ async function clientTests() {
   assert.equal(first.result().prompts, 0, 'First installation is not a pending update');
   assert.equal(first.result().reloads, 0);
 
-  const changed = clientFixture('https:', { waiting: false });
+  const changed = clientFixture('https:', { waiting: false, prepared: false });
   await flush();
   changed.context.navigator.serviceWorker.controller = changed.next;
   changed.listeners.controllerchange();
   await flush();
-  assert.equal(changed.result().prompts, 1, 'External activation still needs consent before reloading this page');
+  assert.equal(changed.result().prompts, 1, 'External activation still shows the notice before reloading this page');
   assert.equal(changed.result().reloads, 0);
-  changed.accept(true);
+  changed.prepare(true);
   changed.storage.set('p274_update_last_reload', JSON.stringify({ release: 'new', at: 100000 }));
   await changed.listeners['button:click']();
   assert.equal(changed.result().reloads, 0, 'Repeated reload of the same release is blocked');
 
   const refreshed = clientFixture();
   await flush();
-  assert.equal(refreshed.result().prompts, 1, 'A fresh page may offer a previously deferred release again');
+  assert.equal(refreshed.result().prompts, 1, 'A fresh page announces a waiting update');
+  assert.equal(refreshed.result().activations, 1, 'The notice has no cancellation branch');
+  await refreshed.intervals[5000]();
+  assert.equal(refreshed.result().reloads, 1);
+
+  const current = clientFixture('https:', { waiting: false });
+  await flush();
+  await current.intervals[5000]();
+  assert.equal(current.result().prompts, 0, 'No update means no notice');
+  assert(!updateSource.includes('window.confirm('), 'Never offer a cancel button');
 }
 
 (async () => {
@@ -231,5 +246,5 @@ async function clientTests() {
   for (const url of shellUrls.filter(url => /\.(js|css)\?/.test(url))) assert(html.includes(url.slice(2)), url);
   await workerTests();
   await clientTests();
-  console.log('Update checks passed: integrity install, release-specific consent, cancellation/retry, load/install/controller changes, multi-tab and storage guards, offline/local behavior and single reload.');
+  console.log('Update checks passed: integrity install, confirmation-only notice, automatic continuation/retry, load/install/controller changes, multi-tab and storage guards, offline/local behavior and single reload.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

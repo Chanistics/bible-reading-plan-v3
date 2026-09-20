@@ -12,7 +12,6 @@
   let pendingReload = false;
   let working = false;
   let reloading = false;
-  let promptedRelease = null;
   let approvedRelease = null;
   let approvalActivity = null;
 
@@ -56,16 +55,13 @@
     try {
       const { release } = await message(worker, 'GET_RELEASE');
       if (!release || candidateWorker() !== worker || !safeToApply()) return;
-      if (approvedRelease !== release || manual) {
-        if (promptedRelease === release && !manual) return;
-        promptedRelease = release;
-        approvedRelease = null;
-        if (!window.confirm('새 버전으로 변경할까요?\n\n저장된 통독 기록은 유지됩니다.\n취소하면 현재 화면을 계속 사용할 수 있습니다.')) return;
-        // Consent applies only to this release, never to a later download.
+      if (approvedRelease !== release) {
+        window.alert('새 버전으로 업데이트합니다.\n\n확인을 누르면 업데이트가 진행됩니다.\n저장된 통독 기록은 유지됩니다.');
+        // Acknowledgement applies only to the announced release.
         approvedRelease = release;
         approvalActivity = lastActivity;
       }
-      if (candidateWorker() !== worker || !safeToApply(true)) return;
+      if (candidateWorker() !== worker || !safeToApply(!manual)) return;
       if (pendingReload && navigator.serviceWorker.controller) {
         const previous = JSON.parse(sessionStorage.getItem(RELOAD_KEY) || 'null');
         if (previous?.release === release && Date.now() - previous.at < 5 * 60000) return;

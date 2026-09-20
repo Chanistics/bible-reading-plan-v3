@@ -4,23 +4,40 @@
   "description": "유대력 기준 매일 성경 통독 트래커",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0f0f0d",
+  "background_color": "#232323",
   "theme_color": "#0f0f0d",
   "icons": [
     {
-      "src": "icon-192.png?v=2",
+      "src": "assets/branding/icon-192-d575d4f08687.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "icon-512.png?v=2",
+      "src": "assets/branding/icon-512-e5970e56d01f.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "icon-1024.png?v=2",
+      "src": "assets/branding/icon-1024-5cd31de1849b.png",
       "sizes": "1024x1024",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/branding/icon-maskable-512-398220dc7297.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "assets/branding/icon-maskable-1024-7db9c64b8bf5.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "maskable"
     }
-  ]
+  ],
+  "id": "./index.html",
+  "scope": "./"
 }

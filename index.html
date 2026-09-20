@@ -11,12 +11,76 @@
   <meta name="apple-mobile-web-app-title" content="P274">
   
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@700;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=57">
-  <link rel="icon" href="icon-192.png?v=2" type="image/png" sizes="192x192">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=2" sizes="180x180">
+  <style>
+    .app-boot-screen { display: none; }
+    .app-booting #landing-page, .app-booting #dashboard-page { display: none !important; }
+    .app-booting .app-boot-screen { display: flex; position: fixed; inset: 0; z-index: 2000; align-items: center; justify-content: center; flex-direction: column; gap: 1rem; background: #232323; color: #f5f3eb; font: 14px sans-serif; }
+    .app-boot-screen img { width: 220px; max-width: 64vw; height: auto; aspect-ratio: 1; }
+  </style>
+  <script>
+    try {
+      if (JSON.parse(localStorage.getItem('parashat_tracker_state') || 'null')?.hasEntered) {
+        document.documentElement.classList.add('app-booting');
+        window.appBootTimeout = setTimeout(() => document.documentElement.classList.remove('app-booting'), 10000);
+      }
+    } catch (_) { /* Local storage is optional. */ }
+  </script>
+  <link rel="stylesheet" href="style.css?v=58">
+  <link rel="stylesheet" href="branding.css?v=1">
+  <!-- BRANDING_START -->
+  <link rel="icon" href="assets/branding/icon-192-d575d4f08687.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" sizes="152x152" href="assets/branding/apple-touch-152-856c69e9a0e1.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="assets/branding/apple-touch-167-9b651e4942f8.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/branding/apple-touch-180-bedb45e8a266.png">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-640x1136-bf6b8b5adfc3.png" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1136x640-31f82c159a2e.png" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-750x1334-3e19d34e164d.png" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1334x750-b376a81f8915.png" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1242x2208-21e7615aa76a.png" media="screen and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2208x1242-7a2e0aae165e.png" media="screen and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1125x2436-96ec11ee34c0.png" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2436x1125-cf4909b2174a.png" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1170x2532-743ef177e87d.png" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2532x1170-d5f5b4ff5b64.png" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1179x2556-0f9466925724.png" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2556x1179-8c51ddb8b046.png" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1206x2622-844abc26379d.png" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2622x1206-4304c6478f97.png" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-828x1792-b6db3ee235aa.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1792x828-ecf3950c28a3.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1242x2688-c43d1c08bbaf.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2688x1242-d437aef5e7a9.png" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1284x2778-1bb28b0532d8.png" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2778x1284-2e5b091912d0.png" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1290x2796-f1da5ff79f63.png" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2796x1290-91530910d072.png" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1320x2868-c469ac9823c3.png" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2868x1320-67680adfdd2c.png" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1536x2048-2a3bc6b3659b.png" media="screen and (device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2048x1536-3e5b7a356220.png" media="screen and (device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1620x2160-b5a339d3a51b.png" media="screen and (device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2160x1620-0f87a6a76276.png" media="screen and (device-width: 810px) and (device-height: 1080px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1640x2360-a6c8bc2a8c2d.png" media="screen and (device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2360x1640-5f7c99b8c95c.png" media="screen and (device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1668x2388-f4c414928ac4.png" media="screen and (device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2388x1668-c26252298b58.png" media="screen and (device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-1668x2420-7ac606531322.png" media="screen and (device-width: 834px) and (device-height: 1210px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2420x1668-cfbc55a1e870.png" media="screen and (device-width: 834px) and (device-height: 1210px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2048x2732-bbfdaedb3311.png" media="screen and (device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2732x2048-731165bfdc95.png" media="screen and (device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2064x2752-a85a883dc7ab.png" media="screen and (device-width: 1032px) and (device-height: 1376px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+  <link rel="apple-touch-startup-image" href="assets/branding/startup-2752x2064-0cfca4b94f49.png" media="screen and (device-width: 1032px) and (device-height: 1376px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)">
+  <!-- BRANDING_END -->
   <link rel="manifest" href="manifest.json?v=2">
 </head>
 <body>
+
+  <div class="app-boot-screen" role="status" aria-live="polite">
+    <!-- BOOT_LOGO_START -->
+    <img src="assets/branding/icon-1024-5cd31de1849b.png" srcset="assets/branding/icon-512-e5970e56d01f.png 512w, assets/branding/icon-1024-5cd31de1849b.png 1024w" sizes="220px" width="220" height="220" alt="P274" decoding="sync">
+    <!-- BOOT_LOGO_END -->
+    <span>불러오는 중</span>
+  </div>
 
   <!-- Landing / Login Gate (Simulated for Local/Personal Use) -->
   <div id="landing-page" class="page active">
@@ -438,7 +502,7 @@
   <script src="festival-readings-data.js?v=1"></script>
   <script src="festival-readings.js?v=1"></script>
   <script src="original-language-data.js?v=1"></script>
-  <script src="app.js?v=67"></script>
+  <script src="app.js?v=68"></script>
   <script src="app-update.js?v=1"></script>
 </body>
 </html>

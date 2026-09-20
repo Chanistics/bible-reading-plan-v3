@@ -1019,6 +1019,9 @@ async function enterApplication({ resetActiveTab = false } = {}) {
     await appInitializationPromise;
   } catch (error) {
     // The retry control displayed above owns the recovery path.
+  } finally {
+    clearTimeout(window.appBootTimeout);
+    document.documentElement?.classList.remove('app-booting');
   }
 }
 

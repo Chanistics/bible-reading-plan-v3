@@ -6,7 +6,8 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const workerSource = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 const updateSource = fs.readFileSync(path.join(root, 'app-update.js'), 'utf8');
-const shellUrls = JSON.parse(fs.readFileSync(path.join(__dirname, 'pwa-shell.json'), 'utf8'));
+const shellUrls = [...JSON.parse(fs.readFileSync(path.join(__dirname, 'pwa-shell.json'), 'utf8')),
+  ...JSON.parse(fs.readFileSync(path.join(root, 'assets/branding/asset-index.json'), 'utf8')).shell];
 
 async function workerTests() {
   const handlers = {};

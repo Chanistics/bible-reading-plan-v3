@@ -11,7 +11,7 @@
 
 ## Deployment and Recovery
 
-`npm run build:release` hashes all assets in `tools/pwa-shell.json` and the worker implementation. The resulting release ID and SHA-256 integrity values are embedded in `sw.js`. GitHub Pages builds this manifest before running the complete test suite and uploading the artifact. `npm test` rejects a stale manifest.
+`npm run build:release` hashes all assets in `tools/pwa-shell.json` and `assets/branding/asset-index.json`, plus the worker implementation. The resulting release ID and SHA-256 integrity values are embedded in `sw.js`. GitHub Pages builds this manifest before running the complete test suite and uploading the artifact. `npm test` rejects a stale manifest.
 
 Installation bypasses HTTP cache and uses integrity-checked requests. All required assets must install successfully before activation is possible. A partial or mixed deployment fails installation and leaves the active release intact. This guards download/deployment failures, not every possible application bug; application tests remain required.
 

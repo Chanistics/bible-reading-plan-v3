@@ -8,7 +8,8 @@ const block = /\/\* RELEASE_START \*\/[\s\S]*?\/\* RELEASE_END \*\//;
 const source = fs.readFileSync(workerFile, 'utf8');
 if (!block.test(source)) throw new Error('Missing release block');
 const template = source.replace(block, '/* RELEASE_START */\nconst RELEASE = null;\n/* RELEASE_END */');
-const urls = JSON.parse(fs.readFileSync(path.join(__dirname, 'pwa-shell.json'), 'utf8'));
+const urls = [...JSON.parse(fs.readFileSync(path.join(__dirname, 'pwa-shell.json'), 'utf8')),
+  ...JSON.parse(fs.readFileSync(path.join(root, 'assets/branding/asset-index.json'), 'utf8')).shell];
 const assets = urls.map(url => {
   const relative = url === './' ? 'index.html' : url.split('?')[0];
   const bytes = fs.readFileSync(path.resolve(root, relative));

@@ -22,6 +22,7 @@ let appState = {
 };
 
 let currentPlan = null;
+let weeklyBasePlan = null;
 let activeDateStr = null; // 선택된 날짜 (기본: 오늘)
 let bundledCalendarPlanByDate = null;
 const memoryStorage = new Map();
@@ -691,19 +692,53 @@ function buildBundledCalendarPlanIndex() {
 
 function getCalendarDayPlan(dateStr) {
   if (currentPlan && currentPlan[dateStr]) return currentPlan[dateStr];
+  if (weeklyBasePlan && weeklyBasePlan[dateStr]) return weeklyBasePlan[dateStr];
   return buildBundledCalendarPlanIndex()[dateStr] || null;
 }
 
+function selectCalendarWeek(dateStr) {
+  let plan = weeklyBasePlan?.[dateStr] ? weeklyBasePlan : currentPlan;
+  if (!plan?.[dateStr]) {
+    const anchors = getBundledBereshitCycleAnchors();
+    const cycle = anchors.findIndex((anchor, index) =>
+      anchor.start <= dateStr && anchors[index + 1]?.start > dateStr);
+    if (cycle < 0) return false;
+    plan = Object.fromEntries(Object.entries(buildBundledCalendarPlanIndex())
+      .filter(([date]) => date >= anchors[cycle].start && date < anchors[cycle + 1].start));
+    if (!plan[dateStr]) return false;
+  }
+  if (plan === weeklyBasePlan) weeklyBasePlan = null;
+  else if (plan !== currentPlan && !weeklyBasePlan) weeklyBasePlan = currentPlan;
+  currentPlan = plan;
+  activeDateStr = getWeekDates(dateStr).find(date => currentPlan[date]);
+  return true;
+}
+
+function restoreWeeklyBasePlan() {
+  if (!weeklyBasePlan) return;
+  currentPlan = weeklyBasePlan;
+  weeklyBasePlan = null;
+  const today = getTodayStr();
+  activeDateStr = currentPlan[today] ? today : getPlanDates()[0];
+}
+
+function openCalendarWeek(dateStr) {
+  if (!dateStr || !selectCalendarWeek(dateStr)) return;
+  document.querySelector('.tab-item[data-tab="weekly"]').click();
+  document.getElementById('weekly-parasha-title').focus({ preventScroll: true });
+  document.getElementById('tab-content-weekly').scrollIntoView({ block: 'start' });
+}
+
 // 유대력 첫날(플랜 시작일)로부터 경과 일수 구하기 - 타임존 영향 없음
-function getPlanDayNumber(dateStr) {
-  const dates = getPlanDates();
+function getPlanDayNumber(dateStr, plan = currentPlan) {
+  const dates = getPlanDates(plan);
   const idx = dates.indexOf(dateStr);
   return idx !== -1 ? idx + 1 : 1;
 }
 
 // 1년 플랜 중 몇 주차(1~52)인지 계산 (타임존 영향 최소화된 UTC 기준 계산)
-function getPlanWeekNumber(dateStr) {
-  const dates = getPlanDates();
+function getPlanWeekNumber(dateStr, plan = currentPlan) {
+  const dates = getPlanDates(plan);
   if (dates.length === 0) return 1;
   const firstDate = dates[0];
   
@@ -769,14 +804,14 @@ function getCalendarReadingStatus(dateStr, dayData, progressDay = {}, todayStr =
 }
 
 // 전체 통계 계산 (전체 체크항목 개수 기준 진율 + 완료 일수)
-function calculateStats() {
+function calculateStats(plan = currentPlan) {
   let totalReadings = 0;
   let completedReadings = 0;
   let completedDays = 0;
   let totalDays = 0;
 
-  Object.keys(currentPlan).forEach(date => {
-    const dayData = currentPlan[date];
+  Object.keys(plan).forEach(date => {
+    const dayData = plan[date];
     const progressDay = appState.progress[date] || {};
     
     let dayReadingsCount = 0;
@@ -929,6 +964,7 @@ async function initApp() {
   migrateProgressToIsraelPlan(hYear, plan);
   migrateProgressToUpdatedPlan(hYear, plan, previousPlanRaw, previousProgress);
   currentPlan = plan;
+  weeklyBasePlan = null;
 
   // 오늘 날짜가 플랜 범위 내에 있으면 오늘을 선택, 없으면 플랜 첫날 선택
   if (currentPlan[todayStr]) {
@@ -941,6 +977,7 @@ async function initApp() {
   if (updateView) {
     if (['dashboard', 'reading', 'weekly', 'annual', 'settings'].includes(updateView.tab)) appState.activeTab = updateView.tab;
     if (currentPlan[updateView.date]) activeDateStr = updateView.date;
+    else if (updateView.tab === 'weekly') selectCalendarWeek(updateView.date);
     if (updateView.calendar && !Number.isNaN(Date.parse(updateView.calendar))) calendarCurrentDate = new Date(updateView.calendar);
     if (updateView.filters) Object.assign(annualViewFilters, updateView.filters);
     document.getElementById('reflection-share-note').value = updateView.reflection || '';
@@ -1075,6 +1112,7 @@ function setupTabs() {
   document.querySelectorAll('.tab-item').forEach(btn => {
     btn.addEventListener('click', () => {
       const targetTab = btn.getAttribute('data-tab');
+      if (targetTab !== 'weekly') restoreWeeklyBasePlan();
       document.getElementById('today-reading-block').classList.toggle('hidden', !['dashboard', 'reading'].includes(targetTab));
       
       document.querySelectorAll('.tab-item').forEach(b => {
@@ -1155,7 +1193,7 @@ function setupTabs() {
   // Ticker 일괄 완료 체크 버튼
   document.getElementById('btn-ticker-check').addEventListener('click', () => {
     const todayStr = getTodayStr();
-    const todayData = currentPlan[todayStr];
+    const todayData = (weeklyBasePlan || currentPlan)[todayStr];
     if (!todayData) return;
     const progressDay = appState.progress[todayStr] || {};
     const isCompleted = isDayCompleted(todayData, progressDay);
@@ -1221,6 +1259,7 @@ function setupScheduleViewActions() {
   document.getElementById('btn-week-prev').addEventListener('click', () => moveWeeklyView(-7));
   document.getElementById('btn-week-next').addEventListener('click', () => moveWeeklyView(7));
   document.getElementById('btn-week-today').addEventListener('click', () => {
+    restoreWeeklyBasePlan();
     const todayStr = getTodayStr();
     if (currentPlan[todayStr]) {
       activeDateStr = todayStr;
@@ -1417,7 +1456,7 @@ function setupModalAccessibility() {
 
 // 특정 일자의 모든 통독 항목 일괄 토글
 function setDayCompletion(dateStr, markComplete) {
-  const fields = getDayReadingFields(currentPlan[dateStr]);
+  const fields = getDayReadingFields(currentPlan[dateStr] || weeklyBasePlan?.[dateStr]);
   if (!fields.length) return;
   if (!appState.progress[dateStr]) appState.progress[dateStr] = {};
   fields.forEach(field => { appState.progress[dateStr][field] = markComplete; });
@@ -1672,7 +1711,7 @@ async function renderFestivalReadings(containerId, dates) {
 function renderWeeklySchedule(todayStr, days) {
   const summary = getWeekSummary(activeDateStr);
   renderFestivalReadings('weekly-festival-readings', summary.dates);
-  const totalWeeks = Math.max(...getPlanDates().map(getPlanWeekNumber));
+  const totalWeeks = Math.max(...getPlanDates().map(date => getPlanWeekNumber(date)));
   const weekNum = getPlanWeekNumber(activeDateStr);
   const meta = window.getParashaMeta(summary.parasha);
   const title = summary.parasha === 'Special Week'
@@ -1727,7 +1766,7 @@ function renderWeeklySchedule(todayStr, days) {
   const planDates = getPlanDates();
   document.getElementById('btn-week-prev').disabled = summary.dates[0] === planDates[0];
   document.getElementById('btn-week-next').disabled = summary.dates[summary.dates.length - 1] === planDates[planDates.length - 1];
-  document.getElementById('btn-week-today').disabled = !currentPlan[todayStr];
+  document.getElementById('btn-week-today').disabled = !(weeklyBasePlan || currentPlan)[todayStr];
 
   const scheduleContainer = document.getElementById('weekly-schedule-container');
   scheduleContainer.replaceChildren();
@@ -1877,8 +1916,9 @@ async function renderDashboard() {
   document.getElementById('family-title-text').textContent = appState.familyName || DEFAULT_FAMILY_NAME;
 
   // 2. Stat Box 데이터 계산
-  const todayPlan = currentPlan[todayStr];
-  const nowDayOfYear = todayPlan ? getPlanDayNumber(todayStr) : getPlanDayNumber(activeDateStr);
+  const dashboardPlan = weeklyBasePlan || currentPlan;
+  const todayPlan = dashboardPlan[todayStr];
+  const nowDayOfYear = todayPlan ? getPlanDayNumber(todayStr, dashboardPlan) : getPlanDayNumber(activeDateStr);
   
   // 오늘 날짜 뱃지 (UTC 기준으로 파싱하여 표시)
   let todayDisplayDate = gDate;
@@ -1888,9 +1928,9 @@ async function renderDashboard() {
   }
   document.getElementById('stat-today-val').textContent = `${nowDayOfYear}일차`;
 
-  const stats = calculateStats();
+  const stats = calculateStats(dashboardPlan);
   document.getElementById('stat-progress-val').textContent = `${stats.percentage}%`;
-  document.getElementById('stat-completed-val').textContent = `${stats.completedDays} / ${stats.totalDays || getPlanTotalDays()}`;
+  document.getElementById('stat-completed-val').textContent = `${stats.completedDays} / ${stats.totalDays || getPlanTotalDays(dashboardPlan)}`;
   const progressBar = document.getElementById('stat-progress-bar');
   const progressTrack = document.getElementById('stat-progress-track');
   progressBar.style.width = `${stats.percentage}%`;
@@ -1929,7 +1969,7 @@ async function renderDashboard() {
     const rawPName = todayPlan.parasha || "Special Week";
     const pName = rawPName.replace(/^Parashat\s+|^Parashas\s+/i, '');
     const meta = window.getParashaMeta(pName);
-    const weekNum = getPlanWeekNumber(todayStr);
+    const weekNum = getPlanWeekNumber(todayStr, dashboardPlan);
     const torahTranslated = window.BIBLE_DATA.translateTorahReading(todayPlan.torah);
     const torahCompletionText = todayPlan.torahCompletion
       ? ` | 토라 완독: ${window.BIBLE_DATA.translateTorahReading(todayPlan.torahCompletion)}`
@@ -1960,7 +2000,7 @@ async function renderDashboard() {
     const rawPName = todayPlan.parasha || "Special Week";
     const pName = rawPName.replace(/^Parashat\s+|^Parashas\s+/i, '');
     const meta = window.getParashaMeta(pName);
-    const weekNum = getPlanWeekNumber(todayStr);
+    const weekNum = getPlanWeekNumber(todayStr, dashboardPlan);
 
     const torahTranslated = window.BIBLE_DATA.translateTorahReading(todayPlan.torah);
     let bookName = '토라';
@@ -1995,7 +2035,7 @@ async function renderDashboard() {
   renderFestivalReadings('today-festival-readings', [todayStr]);
 
   // 6. 왼쪽 카드: 오늘의 통독 목록
-  const realTodayDayOfYear = getPlanDayNumber(todayStr);
+  const realTodayDayOfYear = getPlanDayNumber(todayStr, dashboardPlan);
   document.getElementById('checklist-date-title').textContent = `오늘의 통독 (${realTodayDayOfYear}일차)`;
 
   const checklistContainer = document.getElementById('reading-checklist-container');
@@ -2339,7 +2379,8 @@ function renderCalendar() {
     weekCells.forEach(c => gridCells.appendChild(c));
     
     // 8번째 열: 이번주 토라포션 셀 생성 및 삽입
-    const torahCell = document.createElement('div');
+    const torahCell = document.createElement('button');
+    torahCell.type = 'button';
     torahCell.className = 'calendar-cell torah-column-cell';
     torahCell.style.gridColumn = '8';
     torahCell.style.gridRow = String(weekGridRow);
@@ -2347,7 +2388,6 @@ function renderCalendar() {
       const parashaLabel = document.createElement('span');
       const displayParts = getCalendarParashaDisplayParts(weekParasha);
       parashaLabel.className = `calendar-cell-parasha${displayParts.length > 1 ? ' is-double' : ''}`;
-      parashaLabel.title = `Weekly Torah Portion: ${weekParashaFull}`;
       displayParts.forEach(part => {
         const partLabel = document.createElement('span');
         partLabel.className = 'calendar-parasha-part';
@@ -2358,18 +2398,13 @@ function renderCalendar() {
     } else {
       torahCell.innerHTML = `<span style="color: var(--text-dim); font-size: 0.7rem;">-</span>`;
     }
-    torahCell.setAttribute('role', 'button');
-    torahCell.setAttribute('tabindex', '0');
-    torahCell.title = '파라샤 상세 보기';
-    torahCell.addEventListener('click', () => {
-      openParashaDetailModal(weekDateStrs, weekParashaFull || weekParasha);
-    });
-    torahCell.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        openParashaDetailModal(weekDateStrs, weekParashaFull || weekParasha);
-      }
-    });
+    const weekDate = weekDateStrs.find(date => date && getCalendarDayPlan(date));
+    torahCell.disabled = !weekDate;
+    torahCell.dataset.weekDate = weekDate || '';
+    const weekRange = weekDate ? formatPlanDateRange(getWeekDates(weekDate).filter(date => getCalendarDayPlan(date))) : '';
+    torahCell.title = weekDate ? `${weekParashaFull || '절기 주간'} · ${weekRange} · 주간 보기로 이동` : '통독 일정 없음';
+    torahCell.setAttribute('aria-label', torahCell.title);
+    torahCell.addEventListener('click', () => openCalendarWeek(weekDate));
     gridCells.appendChild(torahCell);
     buildCalendarWeekEventBars(weekDateStrs, weekGridRow).forEach(bar => gridCells.appendChild(bar));
     weekGridRow++;

@@ -145,4 +145,61 @@ assert.strictEqual(context.getWeeklyReadingRanges(Object.keys(gapPlan), gapPlan)
 assert.strictEqual(context.getWeeklyReadingRanges(Object.keys(gapPlan), gapPlan)[1].ranges.length, 2, 'Do not bridge an unread chapter');
 assert.strictEqual(context.getWeeklyReadingRanges([], gapPlan).length, 0);
 
-console.log(`Weekly checks passed: ${daysChecked} daily ranges and reader links, ${weeksChecked} displayed weekly summaries across four cycles; full-week completion, undo, gaps, and cycle boundaries.`);
+const index = context.buildBundledCalendarPlanIndex();
+context.window.BASE_PLAN = Object.fromEntries(Object.entries(index).filter(([date]) => date >= anchors[1] && date < anchors[2]));
+vm.runInContext(`
+  currentPlan = window.BASE_PLAN;
+  weeklyBasePlan = null;
+  appState = createDefaultAppState();
+  getTodayStr = () => '${anchors[1]}';
+`, context);
+let calendarWeeks = 0;
+for (const date of Object.keys(index).filter(date => new Date(date).getUTCDay() === 3)) {
+  assert(context.selectCalendarWeek(date));
+  const summary = context.getWeekSummary(date);
+  assert.strictEqual(summary.totalDays, 7, `${date}: calendar entry must include the complete week`);
+  assert.strictEqual(vm.runInContext('activeDateStr', context), summary.dates[0]);
+  assert.deepStrictEqual(Array.from(summary.dates), Array.from(context.getWeekDates(date)));
+  context.restoreWeeklyBasePlan();
+  assert.strictEqual(vm.runInContext('currentPlan', context), context.window.BASE_PLAN, 'Historical navigation must not replace the active annual cycle');
+  calendarWeeks++;
+}
+
+const controls = new Map();
+const control = id => {
+  if (!controls.has(id)) controls.set(id, {
+    handlers: {}, addEventListener(type, handler) { this.handlers[type] = handler; },
+    focus() { this.focused = true; }, scrollIntoView() { this.scrolled = true; }
+  });
+  return controls.get(id);
+};
+context.document.getElementById = control;
+context.document.querySelectorAll = () => [];
+context.document.querySelector = selector => selector === '.tab-item[data-tab="weekly"]'
+  ? { click: () => vm.runInContext("appState.activeTab = 'weekly';", context) } : null;
+vm.runInContext('renderDashboard = () => {};', context);
+context.setupScheduleViewActions();
+const previousDate = anchors[0];
+context.openCalendarWeek(previousDate);
+assert.strictEqual(vm.runInContext('appState.activeTab', context), 'weekly');
+assert(control('weekly-parasha-title').focused && control('tab-content-weekly').scrolled);
+assert.strictEqual(vm.runInContext('weeklyBasePlan', context), context.window.BASE_PLAN);
+control('btn-week-complete').handlers.click();
+assert.strictEqual(context.getWeekSummary(previousDate).completedDays, 7, 'The actual weekly completion action must complete the opened historical week');
+assert(context.getWeekDates(previousDate).every(date => context.isDayCompleted(index[date], vm.runInContext(`appState.progress['${date}']`, context))));
+assert.strictEqual(context.calculateStats(context.window.BASE_PLAN).completedDays, 0, 'Current annual progress must exclude historical completions');
+context.setDayCompletion(anchors[1], true);
+assert.strictEqual(context.calculateStats(context.window.BASE_PLAN).completedDays, 1, 'Today can still be completed while another cycle is open');
+context.setDayCompletion(anchors[1], false);
+control('btn-week-complete').handlers.click();
+assert.strictEqual(context.getWeekSummary(previousDate).completedDays, 0);
+control('btn-week-today').handlers.click();
+assert.strictEqual(vm.runInContext('currentPlan', context), context.window.BASE_PLAN);
+assert.strictEqual(vm.runInContext('activeDateStr', context), anchors[1]);
+
+const outside = '2040-01-01';
+assert.strictEqual(context.selectCalendarWeek(outside), false);
+assert.strictEqual(vm.runInContext('currentPlan', context), context.window.BASE_PLAN);
+assert.strictEqual(vm.runInContext('activeDateStr', context), anchors[1]);
+
+console.log(`Weekly checks passed: ${daysChecked} daily ranges, ${weeksChecked} weekly summaries, ${calendarWeeks} calendar-to-week selections; historical-week completion/undo, return to today, gaps and cycle boundaries.`);

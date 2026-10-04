@@ -5422,10 +5422,26 @@ body.light-mode .weekly-workspace .sched-reading.type-nt .sched-reading-label { 
 }
 
 /* Keep long and combined Torah portion names inside the calendar column. */
+#tab-content-weekly {
+  scroll-margin-top: 5rem;
+}
+
 .calendar-cell.torah-column-cell {
   min-width: 0;
   overflow: hidden;
   padding-inline: 4px;
+  font-family: inherit;
+  line-height: inherit;
+}
+
+.calendar-cell.torah-column-cell:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.calendar-cell.torah-column-cell:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .calendar-cell-parasha {

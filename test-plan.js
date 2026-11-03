@@ -72,8 +72,8 @@ async function main() {
   load('app.js');
   assert.strictEqual(
     vm.runInContext("getBiblicalHolidayName('Pesach Sheni')", context),
-    '두 번째 유월절 (Pesach Sheni)',
-    'Pesach Sheni must not be labeled as the regular Passover festival'
+    null,
+    'Pesach Sheni must be excluded from displayed festivals'
   );
   assert.strictEqual(
     vm.runInContext("getBiblicalHolidayName('Rosh Hashana LaBehemot')", context),

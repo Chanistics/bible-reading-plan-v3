@@ -2,9 +2,9 @@
   "./", "./index.html", "./style.css?v=61", "./branding.css?v=1",
   "./bible-data.js?v=2", "./parasha-data.js", "./parasha-details.js", "./torah-guide-data.js",
   "./calendar-data.js", "./hebcal.js", "./generator.js?v=2",
-  "./festival-readings-data.js?v=1", "./festival-readings.js?v=2",
+  "./festival-readings-data.js?v=1", "./festival-readings.js?v=3",
   "./original-language-data.js?v=1", "./original-data/index.js", "./korean-data/index.js",
   "./original-data/hebrew-lexicon.js", "./original-data/greek-lexicon.js",
-  "./original-data/kjv1769-strong/index.js", "./app.js?v=70", "./app-update.js?v=3",
+  "./original-data/kjv1769-strong/index.js", "./app.js?v=71", "./app-update.js?v=3",
   "./manifest.json?v=2"
 ]

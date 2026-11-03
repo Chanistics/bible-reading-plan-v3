@@ -93,7 +93,6 @@ function main() {
     'Sukkot': ({ month, day }) => month === 'Tishri' && day >= 15 && day <= 21,
     'Shmini Atzeret / Simchat Torah': ({ month, day }) => month === 'Tishri' && day === 22,
     'Purim': ({ month, day }) => /^Adar(?: II)?$/.test(month) && day === 14,
-    'Pesach Sheni': ({ month, day }) => month === 'Iyar' && day === 14,
     'Pesach': ({ month, day }) => month === 'Nisan' && day >= 15 && day <= 21,
     'Shavuot': ({ month, day }) => month === 'Sivan' && day === 6,
     'Chanukah': ({ month, day }) => (month === 'Kislev' && day >= 25) || (month === 'Tevet' && day <= 3)
@@ -142,9 +141,13 @@ function main() {
   assert.strictEqual(context.formatFestivalPeriod(matchingPeriod('Pesach', '2027-04-22')), '2027. 4. 21. 일몰 ~ 4. 28. 밤');
   assert.strictEqual(context.formatFestivalPeriod(matchingPeriod('Shavuot', '2027-06-11')), '2027. 6. 10. 일몰 ~ 6. 11. 밤');
   assert.strictEqual(getHolidayRule('Shavuot').name, '칠칠절(오순절)');
-  assert.strictEqual(getHolidayRule('Pesach Sheni').key, 'Pesach Sheni');
+  assert.strictEqual(getHolidayRule('Pesach Sheni'), null, 'Supplemental Passover must not be displayed');
+  assert(!periods.some(period => period.key === 'Pesach Sheni'));
+  allEvents.filter(event => event.title === 'Pesach Sheni' && calendar[event.date]).forEach(event => {
+    assert.deepStrictEqual(keysOn(event.date), [], `${event.date}: supplemental Passover must not appear in the calendar or weekly summary`);
+  });
   const beforePesach = context.getUpcomingFestivalPeriods('2027-04-01', calendar);
-  assert.deepStrictEqual(Array.from(beforePesach, period => period.key), ['Pesach', 'Chag HaMatzot', 'Firstfruits', 'Pesach Sheni']);
+  assert.deepStrictEqual(Array.from(beforePesach, period => period.key), ['Pesach', 'Chag HaMatzot', 'Firstfruits', 'Shavuot']);
   const duringPesach = context.getUpcomingFestivalPeriods('2027-04-25', calendar);
   assert.strictEqual(duringPesach[0].startDate, '2027-04-22', 'Ongoing periods must retain their original start');
   assert.strictEqual(duringPesach[1].key, 'Chag HaMatzot');

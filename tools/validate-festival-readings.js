@@ -31,6 +31,9 @@ const baseline = {
 const digest = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 async function main() {
+  for (const name of ['Pesach Sheni', 'Erev Pesach Sheni']) {
+    assert.equal(api.getRule({ type: 'holiday', name: { en: name } }), null, 'Supplemental Passover must not return as ordinary Pesach readings');
+  }
   assert.equal(data.calendarStandard, 'israel');
   assert.deepEqual(Object.keys(data.years), ['2025', '2026', '2027', '2028', '2029']);
   let serviceCount = 0, passageCount = 0;
@@ -182,7 +185,7 @@ async function main() {
 
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
-  for (const file of ['festival-readings.js?v=2', 'festival-readings-data.js?v=1']) {
+  for (const file of ['festival-readings.js?v=3', 'festival-readings-data.js?v=1']) {
     assert(html.includes(file));
     assert(sw.includes(file));
   }

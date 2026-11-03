@@ -527,7 +527,6 @@ const BIBLICAL_HOLIDAY_RULES = [
   { pattern: /^shmini atzeret$/, key: 'Shmini Atzeret / Simchat Torah', name: '쉐미니 아쩨렛 · 심하트 토라' },
   { pattern: /^simchat torah$/, key: 'Shmini Atzeret / Simchat Torah', name: '쉐미니 아쩨렛 · 심하트 토라' },
   { pattern: /^purim$/, key: 'Purim', name: '부림절 (Purim)' },
-  { pattern: /^pesach sheni$/, key: 'Pesach Sheni', name: '두 번째 유월절 (Pesach Sheni)' },
   { pattern: /^(?:pesach|passover)(?: (?:i|ii|iii|iv|v|vi|vii|viii)(?: \([^)]*\))?)?$/, key: 'Pesach', name: '유월절 (Pesach)' },
   { pattern: /^shavuot(?: (?:i|ii))?$/, key: 'Shavuot', name: '칠칠절(오순절)', shortName: '칠칠절' },
   { pattern: /^chag hamatzot$/, key: 'Chag HaMatzot', name: '무교절 (Chag HaMatzot)' },
@@ -1637,10 +1636,6 @@ function getParashaExplanationHtml(pName, todayPlan) {
   if (uniqueRules.length) {
 
     const BIBLICAL_HOLIDAYS_DETAIL = {
-      'Pesach Sheni': {
-        name: '두 번째 유월절 (Pesach Sheni)',
-        desc: '<strong>성경적 배경:</strong> 시체로 인해 부정해졌거나 먼 길에 있어 정한 때에 유월절을 지키지 못한 사람에게, 하나님께서 둘째 달 14일에 유월절을 지킬 기회를 허락하셨습니다(민 9:6-14).<br><br><strong>구분:</strong> 정규 유월절이 다시 8일 동안 반복되는 것이 아니라, 첫 유월절을 지키지 못한 사람을 위한 한 달 뒤의 보충일입니다.'
-      },
       'Pesach': {
         name: '유월절 (Pesach / Passover)',
         desc: '<strong>성경적 배경:</strong> 출애굽의 구원을 기억합니다(출 12장). 레위기 23:5의 유월절 제사는 니산월 14일 저녁이며, 현대 이스라엘에서 페사흐로 부르는 절기 기간은 니산월 15-21일의 7일입니다.<br><br><strong>기간과 메길롯:</strong> 이 앱은 현대 이스라엘의 페사흐 기간을 표시합니다. 무교절과 같은 기간이지만 이름을 구분하여 표시하며, 아가를 읽는 관습이 있습니다. 낭독일과 방식은 공동체에 따라 다릅니다.'

@@ -18,6 +18,7 @@
   function getRule(item) {
     if (item.type !== 'holiday') return null;
     const name = String(item.name?.en || '').replace(/[\u2018\u2019\u02bc]/g, "'").replace(/^Erev /, '');
+    if (/^Pesach Sheni(?:\s|$)/i.test(name)) return null;
     return RULES.find(([prefix]) => name === prefix || name.startsWith(prefix + ' ')) || null;
   }
 

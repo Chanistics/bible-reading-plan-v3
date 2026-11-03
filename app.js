@@ -529,7 +529,11 @@ const BIBLICAL_HOLIDAY_RULES = [
   { pattern: /^purim$/, key: 'Purim', name: '부림절 (Purim)' },
   { pattern: /^pesach sheni$/, key: 'Pesach Sheni', name: '두 번째 유월절 (Pesach Sheni)' },
   { pattern: /^(?:pesach|passover)(?: (?:i|ii|iii|iv|v|vi|vii|viii)(?: \([^)]*\))?)?$/, key: 'Pesach', name: '유월절 (Pesach)' },
-  { pattern: /^shavuot(?: (?:i|ii))?$/, key: 'Shavuot', name: '칠칠절 (Shavuot)' }
+  { pattern: /^shavuot(?: (?:i|ii))?$/, key: 'Shavuot', name: '칠칠절(오순절)', shortName: '칠칠절' },
+  { pattern: /^chag hamatzot$/, key: 'Chag HaMatzot', name: '무교절 (Chag HaMatzot)' },
+  { pattern: /^firstfruits$/, key: 'Firstfruits', name: '초실절 (첫 곡식단 봉헌)', shortName: '초실절' },
+  { pattern: /^chanukah: [1-8] candles?$/, key: 'Chanukah', name: '수전절(하누카)', shortName: '수전절', dayOffset: 1 },
+  { pattern: /^chanukah(?:: 8th day)?$/, key: 'Chanukah', name: '수전절(하누카)', shortName: '수전절' }
 ];
 
 function getBiblicalHolidayRule(name) {
@@ -547,8 +551,59 @@ function getBiblicalHolidayName(name) {
   return rule ? rule.name : null;
 }
 
-function normalizeHolidayDateForDisplay(name, dateStr) {
-  return dateStr;
+function getDisplayHolidayRules(dateStr, lookup = getCalendarDayPlan) {
+  const rules = new Map();
+  // Hebcal candle events describe the evening before the corresponding daytime.
+  [0, 1].forEach(offset => {
+    const day = lookup(shiftDateByDays(dateStr, -offset));
+    (day?.holidays || []).forEach(holiday => {
+      const rule = getBiblicalHolidayRule(holiday.name.replace(/^Holiday:\s*/i, ''));
+      if (rule && (rule.dayOffset || 0) === offset) rules.set(rule.key, rule);
+    });
+  });
+  if (rules.has('Pesach')) {
+    rules.set('Chag HaMatzot', getBiblicalHolidayRule('Chag HaMatzot'));
+    if (Number(getHebrewDateNatively(dateStr).hd) === 16) {
+      rules.set('Firstfruits', getBiblicalHolidayRule('Firstfruits'));
+    }
+  }
+  return Array.from(rules.values());
+}
+
+const festivalPeriodsByPlan = new WeakMap();
+
+function getFestivalPeriods(plan) {
+  if (festivalPeriodsByPlan.has(plan)) return festivalPeriodsByPlan.get(plan);
+  const calendar = { ...buildBundledCalendarPlanIndex(), ...plan };
+  const periods = [];
+  const latestByKey = new Map();
+  Object.keys(calendar).sort().forEach(date => {
+    getDisplayHolidayRules(date, key => calendar[key]).forEach(rule => {
+      const previous = latestByKey.get(rule.key);
+      if (previous && shiftDateByDays(previous.endDate, 1) === date) {
+        previous.endDate = date;
+      } else {
+        const period = { key: rule.key, name: rule.name, startDate: date, endDate: date };
+        latestByKey.set(rule.key, period);
+        periods.push(period);
+      }
+    });
+  });
+  festivalPeriodsByPlan.set(plan, periods);
+  return periods;
+}
+
+function getUpcomingFestivalPeriods(todayStr, plan, limit = 4) {
+  return getFestivalPeriods(plan).filter(period => period.endDate >= todayStr).slice(0, limit);
+}
+
+function formatFestivalPeriod(period) {
+  const start = shiftDateByDays(period.startDate, -1);
+  const format = (date, withYear) => {
+    const [year, month, day] = date.split('-').map(Number);
+    return `${withYear ? year + '. ' : ''}${month}. ${day}.`;
+  };
+  return `${format(start, true)} 일몰 ~ ${format(period.endDate, start.slice(0, 4) !== period.endDate.slice(0, 4))} 밤`;
 }
 
 // 상세 파라샤 설명 매핑 및 더블 포션 처리 지원
@@ -1503,9 +1558,8 @@ function getWeekSummary(dateStr) {
   const parasha = rawParasha.replace(/^Parashat\s+|^Parashas\s+/i, '');
   const holidays = [];
   dates.forEach(date => {
-    (currentPlan[date].holidays || []).forEach(holiday => {
-      const name = getBiblicalHolidayName(holiday.name.replace(/^Holiday:\s*/i, ''));
-      if (name && !holidays.includes(name)) holidays.push(name);
+    getDisplayHolidayRules(date).forEach(holiday => {
+      if (!holidays.includes(holiday.name)) holidays.push(holiday.name);
     });
   });
   const completedDays = dates.filter(date => {
@@ -1577,19 +1631,10 @@ function getParashaExplanationHtml(pName, todayPlan) {
     </div>`;
   }
 
-  let activeBiblicalHoliday = null;
-  if (todayPlan.holidays && todayPlan.holidays.length > 0) {
-    for (const h of todayPlan.holidays) {
-      if (getBiblicalHolidayName(h.name)) {
-        activeBiblicalHoliday = h.name;
-        break;
-      }
-    }
-  }
-
-  if (activeBiblicalHoliday) {
-    const holidayRule = getBiblicalHolidayRule(activeBiblicalHoliday);
-    const holidayKey = holidayRule ? holidayRule.key : null;
+  const holidayRules = todayPlan.festivalRules || (todayPlan.holidays || [])
+    .map(holiday => getBiblicalHolidayRule(holiday.name)).filter(Boolean);
+  const uniqueRules = Array.from(new Map(holidayRules.map(rule => [rule.key, rule])).values());
+  if (uniqueRules.length) {
 
     const BIBLICAL_HOLIDAYS_DETAIL = {
       'Pesach Sheni': {
@@ -1598,11 +1643,23 @@ function getParashaExplanationHtml(pName, todayPlan) {
       },
       'Pesach': {
         name: '유월절 (Pesach / Passover)',
-        desc: '<strong>성경적 배경:</strong> 애굽의 종살이에서 이스라엘을 구원하기 위해 열 번째 재앙(장자의 죽음)을 내리실 때, 어린 양의 피를 문설주에 바른 집은 죽음의 재앙이 "넘어갔던(Passover)" 것에서 유래합니다(출 12장).<br><br><strong>문화와 의미:</strong> 누룩 없는 빵인 무교병을 먹으며 고난을 기억하고 자유의 기쁨을 선포합니다. 신약 성경에서는 예수 그리스도를 세상 죄를 지고 가는 유월절 어린 양의 실체로 해석합니다(고전 5:7).'
+        desc: '<strong>성경적 배경:</strong> 출애굽의 구원을 기억합니다(출 12장). 레위기 23:5의 유월절 제사는 니산월 14일 저녁이며, 현대 이스라엘에서 페사흐로 부르는 절기 기간은 니산월 15-21일의 7일입니다.<br><br><strong>기간과 메길롯:</strong> 이 앱은 현대 이스라엘의 페사흐 기간을 표시합니다. 무교절과 같은 기간이지만 이름을 구분하여 표시하며, 아가를 읽는 관습이 있습니다. 낭독일과 방식은 공동체에 따라 다릅니다.'
+      },
+      'Chag HaMatzot': {
+        name: '무교절 (Chag HaMatzot)',
+        desc: '<strong>기간:</strong> 니산월 15-21일, 누룩 없는 빵을 먹으며 출애굽을 기억하는 7일입니다(레 23:6-8). 이스라엘 기준 페사흐 기간과 겹칩니다.<br><br><strong>메길롯:</strong> 이 기간에 아가를 읽는 관습이 있습니다. 유월절과 별개의 메길롯을 추가하지 않으며, 통독 진도에도 중복 계산하지 않습니다.'
+      },
+      'Firstfruits': {
+        name: '초실절 (첫 곡식단 봉헌)',
+        desc: '<strong>날짜 기준:</strong> 전통 랍비 유대력의 니산월 16일로 표시합니다. 첫 보리 곡식단(오메르)을 드리던 날이며, 이날부터 49일을 세어 칠칠절에 이릅니다(레 23:9-16). 일요일 기준으로 해석하는 전통과는 날짜가 다를 수 있습니다.<br><br><strong>메길롯:</strong> 이날만을 위해 별도로 지정된 성경의 다섯 메길롯은 없습니다. 페사흐 기간의 아가 낭독과 구분합니다.'
+      },
+      'Chanukah': {
+        name: '수전절(하누카)',
+        desc: '<strong>기간과 배경:</strong> 키슬레브월 25일부터 8일간, 예루살렘 성전의 재봉헌을 기념합니다. 첫째 날의 전날 저녁부터 촛불을 켭니다. 요한복음 10:22에도 수전절이 언급됩니다.<br><br><strong>메길롯:</strong> 성경의 다섯 메길롯 중 별도로 지정된 책은 없습니다. 일부 공동체의 메길랏 안티오쿠스 낭독은 이 다섯 메길롯과 다른 전승입니다.'
       },
       'Shavuot': {
-        name: '칠칠절 / 오순절 (Shavuot / Pentecost)',
-        desc: '<strong>성경적 배경:</strong> 유월절 다음 날부터 7주를 센 후(49일) 50일째 되는 날에 드리는 절기입니다(레 23:15-21). 시내산에서 모세가 토라(율법)를 받은 날로 전통적으로 기억됩니다.<br><br><strong>문화와 의미:</strong> 첫 열매를 바치는 수확의 기쁨과 토라의 계시를 축하합니다. 신약 시대에는 바로 이 날에 사도들에게 성령이 임하여(행 2장) 신약 교회의 탄생을 알리는 성령 강림의 날로 완성되었습니다.'
+        name: '칠칠절(오순절) · Shavuot',
+        desc: '<strong>날짜와 배경:</strong> 니산월 16일부터 오메르 49일을 센 다음 날, 이스라엘에서는 시완월 6일 하루를 지킵니다(레 23:15-21). 밀 수확과 첫 열매, 전통적으로 시내산에서 토라를 받은 일을 기억합니다. 사도행전 2장의 오순절과도 연결됩니다.<br><br><strong>메길롯:</strong> 룻기 1-4장을 읽는 관습이 있습니다. 공동체에 따라 낭독 방식에 차이가 있습니다.'
       },
       'Rosh Hashana': {
         name: '나팔절 (Rosh Hashana / Yom Teruah)',
@@ -1626,13 +1683,14 @@ function getParashaExplanationHtml(pName, todayPlan) {
       }
     };
 
-    const holDetail = BIBLICAL_HOLIDAYS_DETAIL[holidayKey];
-    if (holDetail) {
+    uniqueRules.forEach(rule => {
+      const holDetail = BIBLICAL_HOLIDAYS_DETAIL[rule.key];
+      if (!holDetail) return;
       detailHtml += `<div style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.75rem;">
-        <strong style="color: var(--gold); display: block; margin-bottom: 0.25rem;">✨ 절기 배경: ${holDetail.name}</strong>
+        <strong style="color: var(--gold); display: block; margin-bottom: 0.25rem;">절기 배경: ${holDetail.name}</strong>
         <p style="font-size: 0.9rem; line-height: 1.5; color: var(--text-muted); margin: 0; word-break: keep-all;">${holDetail.desc}</p>
       </div>`;
-    }
+    });
   }
 
   return detailHtml;
@@ -1731,7 +1789,7 @@ function renderWeeklySchedule(todayStr, days) {
   completeButton.setAttribute('aria-pressed', String(isWeekCompleted));
   document.getElementById('weekly-parasha-meaning').textContent = summary.parasha === 'Special Week' ? '절기 특별 본문' : meta.meaning;
   document.getElementById('weekly-parasha-description').innerHTML = getParashaExplanationHtml(summary.parasha, {
-    holidays: summary.dates.flatMap(date => currentPlan[date].holidays || [])
+    festivalRules: summary.dates.flatMap(date => getDisplayHolidayRules(date))
   });
   const guide = document.getElementById('weekly-torah-guide');
   const guideStages = getTorahGuideStagesForWeek(summary.dates);
@@ -1949,19 +2007,8 @@ async function renderDashboard() {
   if (hebDateObj && hebDateObj.hm) {
     bannerText += ` | ${hebDateObj.hd} ${hebDateObj.hm} ${hebDateObj.hy} / ${hebDateObj.hebrew}`;
   }
-  if (todayPlan && todayPlan.holidays && todayPlan.holidays.length > 0) {
-    let biblicalHol = null;
-    for (const h of todayPlan.holidays) {
-      const name = getBiblicalHolidayName(h.name);
-      if (name) {
-        biblicalHol = name;
-        break;
-      }
-    }
-    if (biblicalHol) {
-      bannerText += ` | ✨ ${biblicalHol}`;
-    }
-  }
+  const todayHolidays = getDisplayHolidayRules(todayStr).map(rule => rule.name);
+  if (todayHolidays.length) bannerText += ` | ${todayHolidays.join(' · ')}`;
   document.getElementById('header-hebcal-banner').textContent = bannerText;
 
   // 4. Ticker Bar 정보 (오늘 기준)
@@ -2028,7 +2075,7 @@ async function renderDashboard() {
     
     // 상세 문화/성경 설명 바인딩
     const detailBox = document.getElementById('parasha-meaning-box-new');
-    detailBox.innerHTML = getParashaExplanationHtml(pName, todayPlan);
+    detailBox.innerHTML = getParashaExplanationHtml(pName, { ...todayPlan, festivalRules: getDisplayHolidayRules(todayStr) });
   }
 
   renderTodayTorahGuide(todayStr);
@@ -2318,20 +2365,9 @@ function renderCalendar() {
         
         const dayPlan = getCalendarDayPlan(dateStr);
         const readingStatus = getCalendarReadingStatus(dateStr, dayPlan, appState.progress[dateStr] || {}, todayStr);
-        let holidayName = '';
+        const holidayRules = getDisplayHolidayRules(dateStr);
         
         if (dayPlan) {
-          if (dayPlan.holidays && dayPlan.holidays.length > 0) {
-            for (const h of dayPlan.holidays) {
-              const name = getBiblicalHolidayName(h.name);
-              if (name) {
-                const match = name.match(/^([가-힣a-zA-Z0-9\s]+?)\s*\(/);
-                holidayName = match ? match[1].trim() : name;
-                break;
-              }
-            }
-          }
-          
           // 해당 주간의 파라샤 명칭 수집
           if (dayPlan.parasha) {
             weekParashaFull = dayPlan.parasha;
@@ -2353,7 +2389,7 @@ function renderCalendar() {
         
         cell.innerHTML = `
           <span class="calendar-cell-greg">${d}</span>
-          ${holidayName ? `<span class="calendar-cell-holiday" title="${holidayName}">${holidayName}</span>` : ''}
+          ${holidayRules.map(rule => `<span class="calendar-cell-holiday" title="${escapeHtml(rule.name)}">${escapeHtml(rule.shortName || rule.name.replace(/\s*\(.*\)$/, ''))}</span>`).join('')}
           <span class="calendar-cell-heb">${hebDate.hd || ''}</span>
         `;
         
@@ -2406,7 +2442,17 @@ function renderCalendar() {
     torahCell.setAttribute('aria-label', torahCell.title);
     torahCell.addEventListener('click', () => openCalendarWeek(weekDate));
     gridCells.appendChild(torahCell);
-    buildCalendarWeekEventBars(weekDateStrs, weekGridRow).forEach(bar => gridCells.appendChild(bar));
+    const eventBars = buildCalendarWeekEventBars(weekDateStrs, weekGridRow);
+    eventBars.forEach(bar => {
+      const laneCount = Number(bar.style.getPropertyValue('--event-slot')) + 1;
+      const [start, end] = bar.style.gridColumn.split('/').map(Number);
+      weekCells.slice(start - 1, end - 1).forEach(cell => {
+        const previous = Number(cell.style.getPropertyValue('--calendar-event-lanes')) || 0;
+        cell.style.setProperty('--calendar-event-lanes', Math.max(previous, laneCount));
+        cell.classList.add('has-calendar-events');
+      });
+      gridCells.appendChild(bar);
+    });
     weekGridRow++;
   }
 }
@@ -2580,40 +2626,7 @@ function renderUpcomingHolidays() {
   container.innerHTML = '';
   
   const todayStr = getTodayStr();
-  const dates = getPlanDates();
-  const todayIdx = dates.indexOf(todayStr);
-  const startIdx = todayIdx !== -1 ? todayIdx : 0;
-  
-  const upcomingHols = [];
-  
-  for (let i = startIdx; i < dates.length; i++) {
-    const dateStr = dates[i];
-    const dayData = currentPlan[dateStr];
-    if (dayData.holidays && dayData.holidays.length > 0) {
-      for (const h of dayData.holidays) {
-        const normName = getBiblicalHolidayName(h.name);
-        if (normName) {
-          const alreadyAdded = upcomingHols.some(item => item.name === normName);
-          if (!alreadyAdded) {
-            const displayDateStr = normalizeHolidayDateForDisplay(normName, dateStr);
-            const d1 = new Date(todayStr);
-            const d2 = new Date(displayDateStr);
-            const diffTime = d2 - d1;
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
-            upcomingHols.push({
-              name: normName,
-              dateStr: displayDateStr,
-              dday: diffDays
-            });
-            break;
-          }
-        }
-      }
-    }
-    
-    if (upcomingHols.length >= 4) break;
-  }
+  const upcomingHols = getUpcomingFestivalPeriods(todayStr, weeklyBasePlan || currentPlan);
   
   if (upcomingHols.length === 0) {
     container.innerHTML = '<div style="color: var(--text-dim); font-size: 0.9rem; text-align: center; padding: 1rem;">다가오는 절기가 없습니다.</div>';
@@ -2621,49 +2634,29 @@ function renderUpcomingHolidays() {
   }
   
   upcomingHols.forEach(item => {
-    const parts = item.dateStr.split('-');
-    const gDate = new Date(Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10)-1, parseInt(parts[2], 10)));
-    const daysName = ['일','월','화','수','목','금','토'];
-    const gDayOfWeek = daysName[gDate.getUTCDay()];
-    
-    const formattedGregorian = `${parts[0]}년 ${parseInt(parts[1], 10)}월 ${parseInt(parts[2], 10)}일(${gDayOfWeek})`;
-    
-    const hebDate = getHebrewDateNatively(item.dateStr);
-    const formattedHebrew = hebDate.hm ? `${hebDate.hd} ${hebDate.hm} / ${hebDate.hebrew}` : '';
-    
-    let ddayText = '';
-    if (item.dday === 0) {
-      ddayText = '오늘!';
-    } else if (item.dday > 0) {
-      ddayText = `D-${item.dday}`;
-    } else {
-      ddayText = `D+${Math.abs(item.dday)}`;
-    }
-    
-    const row = document.createElement('div');
+    const eveningStart = shiftDateByDays(item.startDate, -1);
+    const diffDays = Math.round((new Date(`${eveningStart}T00:00:00Z`) - new Date(`${todayStr}T00:00:00Z`)) / 86400000);
+    const ddayText = diffDays > 0 ? `D-${diffDays}` : diffDays === 0 ? '오늘 시작' : '기간 중';
+    const first = getHebrewDateNatively(item.startDate);
+    const last = getHebrewDateNatively(item.endDate);
+    const hebrewRange = item.startDate === item.endDate
+      ? `${first.hd} ${first.hm} ${first.hy}`
+      : `${first.hd} ${first.hm} ~ ${last.hd} ${last.hm} ${last.hy}`;
+    const megillah = { Pesach: '아가 1-8장', 'Chag HaMatzot': '아가 1-8장', Shavuot: '룻기 1-4장' }[item.key];
+    const row = document.createElement('button');
+    row.type = 'button';
     row.className = 'holiday-item-row';
+    row.dataset.festivalKey = item.key;
+    row.setAttribute('aria-label', `${item.name}, ${formatFestivalPeriod(item)}, 주간 보기`);
     row.innerHTML = `
-      <div class="holiday-item-left">
-        <div class="holiday-item-title">${item.name}</div>
-        <div class="holiday-item-date-greg">📅 ${formattedGregorian}</div>
-        ${formattedHebrew ? `<div class="holiday-item-date-heb">✡️ ${formattedHebrew}</div>` : ''}
-      </div>
-      <div class="holiday-item-dday">${ddayText}</div>
+      <span class="holiday-item-left">
+        <span class="holiday-item-title">${escapeHtml(item.name)}</span>
+        <span class="holiday-item-date-greg">${formatFestivalPeriod(item)}</span>
+        <span class="holiday-item-date-heb">${escapeHtml(hebrewRange)}${megillah ? ` · 메길롯: ${megillah}` : ''}</span>
+      </span>
+      <span class="holiday-item-dday">${ddayText}</span>
     `;
-    
-    row.addEventListener('click', () => {
-      activeDateStr = item.dateStr;
-      const p = item.dateStr.split('-');
-      calendarCurrentDate = new Date(Date.UTC(parseInt(p[0], 10), parseInt(p[1], 10) - 1, 1));
-      
-      // 주간 보기 탭으로 스위칭
-      const weeklyTabBtn = document.querySelector('.tab-item[data-tab="weekly"]');
-      if (weeklyTabBtn) {
-        weeklyTabBtn.click();
-      } else {
-        renderDashboard();
-      }
-    });
+    row.addEventListener('click', () => openCalendarWeek(item.startDate));
     
     container.appendChild(row);
   });

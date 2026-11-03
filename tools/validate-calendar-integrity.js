@@ -95,7 +95,8 @@ function main() {
     'Purim': ({ month, day }) => /^Adar(?: II)?$/.test(month) && day === 14,
     'Pesach Sheni': ({ month, day }) => month === 'Iyar' && day === 14,
     'Pesach': ({ month, day }) => month === 'Nisan' && day >= 15 && day <= 21,
-    'Shavuot': ({ month, day }) => month === 'Sivan' && day === 6
+    'Shavuot': ({ month, day }) => month === 'Sivan' && day === 6,
+    'Chanukah': ({ month, day }) => (month === 'Kislev' && day >= 25) || (month === 'Tevet' && day <= 3)
   };
 
   allEvents.filter(item => item.category === 'holiday').forEach(item => {
@@ -103,13 +104,52 @@ function main() {
     if (!rule) return;
     assert(holidayDateRules[rule.key], `Unexpected visible holiday category: ${rule.key}`);
     assert(
-      holidayDateRules[rule.key](getHebrewMonthAndDay(item.date)),
+      holidayDateRules[rule.key](getHebrewMonthAndDay(context.shiftDateByDays(item.date, rule.dayOffset || 0))),
       `${item.title} is displayed on an invalid Hebrew calendar date: ${item.date}`
     );
   });
 
   ['Rosh Hashana LaBehemot', 'Erev Purim', 'Purim Katan', 'Shushan Purim', 'Shushan Purim Katan', 'Purim Meshulash']
     .forEach(name => assert.strictEqual(getHolidayRule(name), null, `${name} must not appear as a main festival`));
+
+  const calendar = context.buildBundledCalendarPlanIndex();
+  const originalCalendar = JSON.stringify(calendar);
+  const periods = context.getFestivalPeriods(calendar);
+  const matchingPeriod = (key, date) => periods.find(period => period.key === key && period.startDate === date);
+  const keysOn = date => Array.from(context.getDisplayHolidayRules(date), rule => rule.key);
+  for (const pesach of periods.filter(period => period.key === 'Pesach')) {
+    assert.strictEqual(dayDifference(pesach.startDate, pesach.endDate), 6, 'Israeli Pesach lasts seven days');
+    const matzot = matchingPeriod('Chag HaMatzot', pesach.startDate);
+    assert.strictEqual(matzot?.endDate, pesach.endDate, 'Matzot must retain the full, separate seven-day period');
+    const firstfruits = matchingPeriod('Firstfruits', context.shiftDateByDays(pesach.startDate, 1));
+    assert(firstfruits, 'Firstfruits must be the second daytime of Pesach');
+    assert.strictEqual(firstfruits.startDate, firstfruits.endDate);
+    assert.deepStrictEqual(getHebrewMonthAndDay(firstfruits.startDate), { month: 'Nisan', day: 16 });
+    assert.deepStrictEqual(keysOn(firstfruits.startDate), ['Pesach', 'Chag HaMatzot', 'Firstfruits']);
+    assert.deepStrictEqual(keysOn(context.shiftDateByDays(pesach.endDate, 1)), []);
+  }
+  for (const chanukah of periods.filter(period => period.key === 'Chanukah')) {
+    assert.strictEqual(dayDifference(chanukah.startDate, chanukah.endDate), 7, 'Hanukkah must be eight, not nine, daytime dates');
+    assert.deepStrictEqual(getHebrewMonthAndDay(chanukah.startDate), { month: 'Kislev', day: 25 });
+    assert(!keysOn(context.shiftDateByDays(chanukah.startDate, -1)).includes('Chanukah'), 'First candle evening must not become an extra daytime');
+    assert(!keysOn(context.shiftDateByDays(chanukah.endDate, 1)).includes('Chanukah'));
+    for (let offset = 0; offset < 8; offset++) {
+      assert.strictEqual(keysOn(context.shiftDateByDays(chanukah.startDate, offset)).filter(key => key === 'Chanukah').length, 1);
+    }
+  }
+  assert.strictEqual(matchingPeriod('Chanukah', '2027-12-25').endDate, '2028-01-01', 'Hanukkah must span Gregorian years correctly');
+  assert.strictEqual(context.formatFestivalPeriod(matchingPeriod('Chanukah', '2027-12-25')), '2027. 12. 24. 일몰 ~ 2028. 1. 1. 밤');
+  assert.strictEqual(context.formatFestivalPeriod(matchingPeriod('Pesach', '2027-04-22')), '2027. 4. 21. 일몰 ~ 4. 28. 밤');
+  assert.strictEqual(context.formatFestivalPeriod(matchingPeriod('Shavuot', '2027-06-11')), '2027. 6. 10. 일몰 ~ 6. 11. 밤');
+  assert.strictEqual(getHolidayRule('Shavuot').name, '칠칠절(오순절)');
+  assert.strictEqual(getHolidayRule('Pesach Sheni').key, 'Pesach Sheni');
+  const beforePesach = context.getUpcomingFestivalPeriods('2027-04-01', calendar);
+  assert.deepStrictEqual(Array.from(beforePesach, period => period.key), ['Pesach', 'Chag HaMatzot', 'Firstfruits', 'Pesach Sheni']);
+  const duringPesach = context.getUpcomingFestivalPeriods('2027-04-25', calendar);
+  assert.strictEqual(duringPesach[0].startDate, '2027-04-22', 'Ongoing periods must retain their original start');
+  assert.strictEqual(duringPesach[1].key, 'Chag HaMatzot');
+  assert.strictEqual(context.getUpcomingFestivalPeriods('2026-11-03', calendar)[0].key, 'Chanukah');
+  assert.strictEqual(JSON.stringify(calendar), originalCalendar, 'Display aliases must not mutate annual readings or progress keys');
 
   const expectedOt = Array.from(context.window.BIBLE_DATA.flattenBooks(context.window.BIBLE_DATA.OT_OTHER_BOOKS));
   const expectedNt = Array.from(context.window.BIBLE_DATA.flattenBooks(context.window.BIBLE_DATA.NT_BOOKS));

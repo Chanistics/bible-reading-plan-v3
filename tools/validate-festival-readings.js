@@ -182,7 +182,7 @@ async function main() {
 
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   const sw = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
-  for (const file of ['festival-readings.js?v=1', 'festival-readings-data.js?v=1']) {
+  for (const file of ['festival-readings.js?v=2', 'festival-readings-data.js?v=1']) {
     assert(html.includes(file));
     assert(sw.includes(file));
   }

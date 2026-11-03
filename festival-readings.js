@@ -4,8 +4,8 @@
   const RULES = [
     ['Rosh Hashana', '나팔절', 'rosh-hashana'],
     ['Yom Kippur', '대속죄일', 'yom-kippur'],
-    ['Pesach', '유월절', 'pesach'],
-    ['Shavuot', '칠칠절', 'shavuot'],
+    ['Pesach', '유월절 · 무교절', 'pesach'],
+    ['Shavuot', '칠칠절(오순절)', 'shavuot'],
     ['Sukkot', '초막절', 'sukkot'],
     ['Shmini Atzeret', '쉐미니 아쩨렛 · 심하트 토라', 'shmini-atzeret'],
     ['Simchat Torah', '쉐미니 아쩨렛 · 심하트 토라', 'shmini-atzeret'],
